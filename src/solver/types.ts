@@ -69,11 +69,15 @@ export type Recipe = {
   steps: Step[]
 }
 
-/** A creator video that shows one hands-on step. `url` opens it at the moment of that step. */
+/** A creator video that shows one hands-on step, from the chapter of that step. */
 export type StepVideo = {
   stepId: string
   title: string
-  url: string
+  youtubeId: string
+  /** Where the chapter of the step starts. */
+  startSeconds: number
+  /** The creator's name, as the figure caption shows it. */
+  creator: string
   /** The creator's page that embeds the video. */
   source: string
 }

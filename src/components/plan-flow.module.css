@@ -202,6 +202,43 @@
   padding-inline: 0;
 }
 
+/* The video figure: a plain box with a play button until the baker presses it, then the player. */
+.video {
+  margin: 0;
+}
+
+.poster,
+.player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--mantine-radius-md);
+}
+
+.poster {
+  display: grid;
+  place-items: center;
+  background: var(--flow-panel);
+  color: var(--flow-ink);
+  cursor: pointer;
+}
+
+.poster:hover,
+.poster:focus-visible {
+  background: var(--flow-line);
+}
+
+.play {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--flow-ink);
+  color: var(--flow-paper);
+  display: grid;
+  place-items: center;
+}
+
 .window {
   display: inline-block;
   padding: 0.15rem 0.6rem;

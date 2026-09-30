@@ -80,16 +80,18 @@ describe('step videos', () => {
     }
   })
 
-  it('link the creator over https, with the recipe page as the source', () => {
+  it('name a YouTube video, its chapter start, the creator and the recipe page as the source', () => {
     for (const video of stepVideos) {
-      expect(video.url, video.stepId).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=[\w-]+&t=\d+s$/)
+      expect(video.youtubeId, video.stepId).toMatch(/^[\w-]{11}$/)
+      expect(Number.isInteger(video.startSeconds) && video.startSeconds >= 0, video.stepId).toBe(true)
+      expect(video.creator, video.stepId).toBe('Marcel Paa')
       expect(video.source, video.stepId).toMatch(/^https:\/\/www\.marcelpaa\.com\//)
       expect(video.title, video.stepId).not.toBe('')
     }
   })
 
   it('are found by step id', () => {
-    expect(findStepVideo('basic-fold-1')?.url).toContain('K4TdJsa1voI')
+    expect(findStepVideo('basic-fold-1')?.youtubeId).toBe('K4TdJsa1voI')
     expect(findStepVideo('no-such-step')).toBeUndefined()
   })
 })
