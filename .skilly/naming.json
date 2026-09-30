@@ -1,0 +1,16 @@
+{
+  "allow": {
+    "tanstackRouteSyntax": {
+      "paths": ["^src/routes/"],
+      "names": ["^\\$", "^_", "^\\(.*\\)$"],
+      "rules": ["file-case"],
+      "why": "TanStack Router file routes: $ splat and params, _ pathless layouts, (group) folders. Hub fix: timschoch/skilly#138."
+    },
+    "betterAuthInstance": {
+      "paths": ["^src/auth/", "^src/routes/api/auth/"],
+      "names": ["^auth$"],
+      "rules": ["short-word"],
+      "why": "Better Auth names its server instance and handler route auth. Hub fix: timschoch/skilly#138."
+    }
+  }
+}
