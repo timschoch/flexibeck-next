@@ -6,6 +6,7 @@ import { hacks } from '../solver/data/hacks'
 import type { Availability, Hack, Plan } from '../solver/types'
 import classes from './plan-flow.module.css'
 import { PlanFlowLayout } from './plan-flow-layout'
+import { TechniqueDemos } from './technique-demo'
 import { TONE_NAMES, TimelineCard, type Tone } from './timeline-card'
 
 const TONES = Object.keys(TONE_NAMES) as Tone[]
@@ -108,6 +109,7 @@ export function PlansPage({ plans, closest, availability, onAccept, onChooseFini
   const [pendingRank, setPendingRank] = useState<number>()
   const [errorMessage, setErrorMessage] = useState<string>()
   const count = plans.length
+  const shown = count === 0 && closest ? [closest] : plans
 
   useEffect(() => {
     if (count > 0) track('plans_shown', { count })
@@ -169,6 +171,7 @@ export function PlansPage({ plans, closest, availability, onAccept, onChooseFini
           <Button onClick={() => onChooseFinish(closest.finish)}>Plan bread ready by {formatDayTime(closest.finish)}</Button>
         </PlanCard>
       )}
+      <TechniqueDemos steps={shown.flatMap((plan) => plan.steps)} />
       <Button variant="default" onClick={onChangeAvailability}>
         Change availability
       </Button>

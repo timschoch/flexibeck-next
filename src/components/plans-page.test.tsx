@@ -5,11 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { track } from '../analytics/analytics'
 import { defaultAvailability } from '../plan-flow/default-availability'
 import { formatDayTime } from '../plan-flow/local-time'
-import { plans } from '../test/fixtures'
+import { fourHourPlan, plans } from '../test/fixtures'
 import { render } from '../test/render'
 import { PlansPage } from './plans-page'
 
 vi.mock('../analytics/analytics', () => ({ track: vi.fn() }))
+
+function listFigureNames(): (string | null | undefined)[] {
+  return screen.queryAllByRole('figure').map((figure) => figure.querySelector('figcaption')?.textContent)
+}
 
 describe('PlansPage', () => {
   beforeEach(() => {
@@ -90,5 +94,49 @@ describe('PlansPage', () => {
     expect(within(card).queryByRole('button', { name: 'Accept this plan' })).toBeNull()
     await userEvent.click(within(card).getByRole('button', { name: `Plan bread ready by ${formatDayTime(closest.finish)}` }))
     expect(onChooseFinish).toHaveBeenCalledWith(closest.finish)
+  })
+
+  it('shows how each technique of the plans is done: one figure per technique, none twice, nothing loaded', () => {
+    render(<PlansPage plans={plans} availability={defaultAvailability} onAccept={vi.fn()} onChooseFinish={vi.fn()} onChangeAvailability={vi.fn()} />)
+
+    const section = screen.getByRole('region', { name: 'How it is done' })
+    expect(within(section).getAllByRole('figure')).toHaveLength(4)
+    expect(listFigureNames()).toEqual(['Autolyse, Marcel Paa', 'Mix, Marcel Paa', 'Stretch and fold, Marcel Paa', 'Shape, Marcel Paa'])
+    expect(document.querySelector('iframe')).toBeNull()
+  })
+
+  it('shows the figures of a hack plan', async () => {
+    render(
+      <PlansPage plans={[fourHourPlan]} availability={defaultAvailability} onAccept={vi.fn()} onChooseFinish={vi.fn()} onChangeAvailability={vi.fn()} />,
+    )
+
+    expect(within(screen.getByRole('region', { name: 'Plan 1' })).getByText('4-hour bread with yeast')).toBeDefined()
+    expect(listFigureNames()).toEqual(['Autolyse, Marcel Paa', 'Mix, Marcel Paa', 'Stretch and fold, Marcel Paa', 'Shape, Marcel Paa'])
+    await userEvent.click(screen.getByRole('button', { name: 'Play video: Mix' }))
+    expect(document.querySelector('iframe')?.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/ZdIlvbulBA8?start=10&autoplay=1')
+  })
+
+  it('shows how the techniques of the closest plan are done', () => {
+    render(
+      <PlansPage
+        plans={[]}
+        closest={fourHourPlan}
+        availability={defaultAvailability}
+        onAccept={vi.fn()}
+        onChooseFinish={vi.fn()}
+        onChangeAvailability={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('region', { name: 'Closest plan' })).toBeDefined()
+    expect(screen.getByRole('region', { name: 'How it is done' })).toBeDefined()
+    expect(listFigureNames()).toEqual(['Autolyse, Marcel Paa', 'Mix, Marcel Paa', 'Stretch and fold, Marcel Paa', 'Shape, Marcel Paa'])
+  })
+
+  it('shows no figure when there is no plan to show', () => {
+    render(<PlansPage plans={[]} availability={defaultAvailability} onAccept={vi.fn()} onChooseFinish={vi.fn()} onChangeAvailability={vi.fn()} />)
+
+    expect(screen.queryByRole('region', { name: 'How it is done' })).toBeNull()
+    expect(listFigureNames()).toEqual([])
   })
 })

@@ -69,12 +69,18 @@ export type Recipe = {
   steps: Step[]
 }
 
-/** A creator video that shows one hands-on step, from the chapter of that step. */
-export type StepVideo = {
-  stepId: string
+/**
+ * How the baker does a hands-on step, named by step kind. A mix inside an autolyse or a
+ * levain build is that technique, not `mix`.
+ */
+export type Technique = Extract<StepKind, 'levain-build' | 'autolyse' | 'mix' | 'fold' | 'shape'>
+
+/** A creator video that shows one technique, from the chapter of that technique. */
+export type TechniqueVideo = {
+  technique: Technique
   title: string
   youtubeId: string
-  /** Where the chapter of the step starts. */
+  /** Where the chapter of the technique starts. */
   startSeconds: number
   /** The creator's name, as the figure caption shows it. */
   creator: string
