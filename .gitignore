@@ -3,4 +3,6 @@ node_modules/
 dist/
 .output/
 .vercel/
+test-results/
+playwright-report/
 .env*.local
