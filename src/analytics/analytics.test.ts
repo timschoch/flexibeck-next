@@ -54,4 +54,13 @@ describe('analytics', () => {
       }),
     )
   })
+
+  it('keeps events from browser bots: opts out of the user agent filter', () => {
+    startAnalytics()
+
+    expect(posthog.init).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({ opt_out_useragent_filter: true }),
+    )
+  })
 })
