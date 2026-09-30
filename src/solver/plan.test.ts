@@ -144,6 +144,9 @@ describe('plan, start now: the vision worked example', () => {
     expect(plans.every((result) => result.hackIds.length > 0)).toBe(true)
   })
 
+  // The vision expects a cold bulk that ends at about 08:00 and shaping in the morning. The only
+  // cold bulk in hacks.md is 55-60 h; the vision's 8-16 h cold bulk is not validated. So the
+  // validated list gives a cold final proof: shape in the evening, fridge overnight, bake in the morning.
   it('ranks the cold final proof first: folds in the evening, fridge overnight, bake in the morning', () => {
     const best = plans[0]
     if (!best) throw new Error('no plan')
@@ -239,12 +242,19 @@ describe('plan, ready by', () => {
     expectInsideAvailability(plans, morningAndEvening)
   })
 
-  it('prefers the plan without hacks, even when it is done early', () => {
+  it('finishes every plan at most 2 h before the finish time', () => {
+    for (const result of plans) expect(finish - result.finish, at(result.finish)).toBeLessThanOrEqual(2 * HOUR)
+  })
+
+  it('drops the plan without hacks: its latest fit is Saturday 19:00, 14 h early', () => {
     const best = plans[0]
     if (!best) throw new Error('no plan')
-    expect(best.hackIds).toEqual([])
-    // Latest finish that keeps all hands-on steps inside 06–10 and 16–22.
-    expect(at(best.finish)).toBe('2026-10-03T19:00')
+    expect(best.hackIds).toEqual(['cold-final-proof'])
+  })
+
+  it('returns no plan when none can finish inside the window', () => {
+    const soon = parseLocalTime('2026-10-02T13:00')
+    expect(plan(input({ now, mode: { kind: 'ready-by', finish: soon } }))).toEqual([])
   })
 })
 

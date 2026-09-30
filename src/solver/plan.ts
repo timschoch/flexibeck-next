@@ -24,6 +24,8 @@ const SEARCH_STEP_MINUTES = 15
 const MAX_PLANS = 3
 /** Assumed: more than two stacked hacks drift too far from anything the creator tested. */
 const MAX_HACKS_PER_PLAN = 2
+/** In `ready-by` mode a plan finishes at most this early, never late. Owner's call. */
+const MAX_EARLY_MINUTES = 2 * 60
 const PERCENT = 100
 const EVERYWHERE: TimeRange[] = [{ start: -Infinity, end: Infinity }]
 
@@ -401,6 +403,8 @@ function spanOf(placements: Placement[]): number {
  * Fits a recipe into the baker's availability. Tries hack combinations (and start times in
  * `ready-by` mode), keeps plans whose hands-on and attended steps lie inside availability,
  * and returns up to three, ranked by fewest hacks, least change in length, then finish time.
+ * In `ready-by` mode a plan must finish inside `MAX_EARLY_MINUTES` before the finish time;
+ * when none does, the result is empty.
  */
 export function plan(input: PlanInput): Plan[] {
   const context: Context = {
@@ -433,15 +437,16 @@ export function plan(input: PlanInput): Plan[] {
     }
 
     const { finish } = input.mode
-    // Every start from now on: a plan with fewer hacks that finishes earlier still ranks first.
     const earliest = input.now + lead
+    const window: TimeRange = { start: finish - MAX_EARLY_MINUTES, end: finish }
     const ranges = listTimeRanges(input.availability, { start: input.now, end: finish })
     let best: Plan | undefined
     for (let start = Math.ceil(earliest / SEARCH_STEP_MINUTES) * SEARCH_STEP_MINUTES; start < finish; start += SEARCH_STEP_MINUTES) {
       const placements = place(segments, start, ranges, input.now)
       if (!placements) continue
       const candidate = toPlan(placements, hackIds, baseline)
-      if (candidate.finish <= finish && (!best || candidate.finish >= best.finish)) best = candidate
+      const fits = candidate.finish >= window.start && candidate.finish <= window.end
+      if (fits && (!best || candidate.finish >= best.finish)) best = candidate
     }
     if (best) plans.push(best)
   }
