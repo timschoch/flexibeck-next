@@ -29,7 +29,8 @@ Run goal: the open issue labelled `run-goal` in this repo.
 | Orchestrator | Plan rings, write tickets, spawn and steer Workers, record Decisions, merge through the merge gate, deploy | Write product code, spend money, change Goals or Guardrails | Run goal reached, or blocked |
 | Worker | Build one ticket in its own worktree and branch, commit, push, open a PR, add free OSS dependencies | Merge, touch another worktree, change workflow files (`CLAUDE.md`, `.claude/`, `.github/`, `.skilly/`, `.agents/skills/`, `scripts/check-pr-workflow*`), use secrets it was not given | PR open, `verify ci` green, tests written first, final line `RESULT: done <PR URL>` |
 
-- Workers: `node /Users/tim/glue/.agents/skills/t3-threads/scripts/t3-threads.mjs ... --repo /Users/tim/flexibeck-next` ([SKILL.md](/Users/tim/glue/.agents/skills/t3-threads/SKILL.md)). Max 3 Workers + 1 Orchestrator.
+- Workers: [t3-threads](.claude/skills/t3-threads/SKILL.md), copied from Glue, with `--repo /Users/tim/flexibeck-next`. Max 3 Workers + 1 Orchestrator.
+- Overrides of the merge gate: one line each in `docs/overrides.md` (date, PR, reason). They go into the ring report.
 - A Worker that cannot go on ends with `RESULT: blocked <why>` or `RESULT: question <question>`.
 - Ask the Owner only what the Owner owns: issue labelled `ready-for-human`, one question, options, your pick.
 - Build concentric: the smallest flexibeck that runs the cycle, then widen. Ring report as a comment on the run-goal issue: shipped, Insights, Decisions, next ring.
