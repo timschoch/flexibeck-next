@@ -23,7 +23,11 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg', schema, usePlural: true }),
   emailAndPassword: { enabled: true, requireEmailVerification: false },
   user: { additionalFields: { experience: { type: 'string', required: true, validator: { input: experienceSchema } } } },
-  rateLimit: { enabled: true, storage: 'database' },
+  rateLimit: {
+    enabled: true,
+    storage: 'database',
+    customRules: { '/sign-up/email': { window: 3600, max: 50 } },
+  },
   advanced: { useSecureCookies: process.env.NODE_ENV === 'production' },
   plugins: [tanstackStartCookies()],
 })
