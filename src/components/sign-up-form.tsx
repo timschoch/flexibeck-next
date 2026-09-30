@@ -30,8 +30,8 @@ export function SignUpForm() {
       setErrorMessage(error.message ?? 'Could not create the account')
       return
     }
-    track('signed_up')
     identify(data.user.id, { experience: experience.data })
+    track('signed_up')
     await router.invalidate()
     await router.navigate({ to: '/plan' })
   }

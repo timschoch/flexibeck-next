@@ -55,7 +55,7 @@ describe('analytics identity', () => {
     expect(identify).not.toHaveBeenCalled()
   })
 
-  it('fires signed_up, then identifies the baker with the experience', async () => {
+  it('identifies the baker with the experience, then fires signed_up', async () => {
     vi.mocked(authClient.signUp.email).mockResolvedValue(signedIn as never)
     render(<SignUpForm />)
 
@@ -71,7 +71,7 @@ describe('analytics identity', () => {
     expect(track).toHaveBeenCalledWith('signed_up')
     expect(identify).toHaveBeenCalledTimes(1)
     expect(identify).toHaveBeenCalledWith('baker-1', { experience: 'intermediate' })
-    expect(vi.mocked(track).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(identify).mock.invocationCallOrder[0]!)
+    expect(vi.mocked(identify).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(track).mock.invocationCallOrder[0]!)
   })
 
   it('creates no account without the experience', async () => {
