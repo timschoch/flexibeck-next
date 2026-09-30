@@ -1,6 +1,7 @@
 import { Alert, Button, PasswordInput, Stack, TextInput } from '@mantine/core'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { identify } from '../analytics/analytics'
 import { authClient } from '../auth/auth-client'
 
 export function SignInForm() {
@@ -12,7 +13,7 @@ export function SignInForm() {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     setPending(true)
-    const { error } = await authClient.signIn.email({
+    const { data, error } = await authClient.signIn.email({
       email: String(form.get('email')),
       password: String(form.get('password')),
     })
@@ -21,6 +22,7 @@ export function SignInForm() {
       setErrorMessage(error.message ?? 'Could not sign in')
       return
     }
+    identify(data.user.id)
     await router.invalidate()
     await router.navigate({ to: '/plan' })
   }

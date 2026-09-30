@@ -1,0 +1,212 @@
+/* The vision's colours: warm = room, cold = fridge, green = your hours. */
+.palette {
+  --flow-ink: light-dark(#1d2320, #e9ece6);
+  --flow-paper: light-dark(#fafaf7, #171a18);
+  --flow-panel: light-dark(#f0f1ec, #20241f);
+  --flow-line: light-dark(#d9dcd6, #343a36);
+  --flow-crust: light-dark(#7a4e26, #d6a06c);
+  --flow-warm: light-dark(#d99a2b, #e2a941);
+  --flow-warm-soft: light-dark(#f6e3bc, #4a3a1c);
+  --flow-cold: light-dark(#3d6f8e, #7fb2d1);
+  --flow-cold-soft: light-dark(#d3e4ee, #1f3a4b);
+  --flow-available: light-dark(#ddebd9, #23372a);
+  --flow-available-edge: light-dark(#6e9a63, #7fb372);
+}
+
+.progress {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  margin-block: 0.4rem 0.9rem;
+}
+
+.progressPart {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--flow-line);
+}
+
+.progressPart[data-reached] {
+  background: var(--flow-ink);
+}
+
+.recipe {
+  display: block;
+  width: 100%;
+  padding: var(--mantine-spacing-md);
+  border: 1.5px solid var(--flow-line);
+  border-radius: var(--mantine-radius-lg);
+  background: var(--mantine-color-body);
+  text-align: start;
+}
+
+.recipe:not(:disabled):hover {
+  border-color: var(--flow-ink);
+}
+
+.recipe:disabled {
+  border-style: dashed;
+  color: var(--mantine-color-dimmed);
+  cursor: not-allowed;
+}
+
+.day {
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  border-radius: var(--mantine-radius-lg);
+  background: var(--flow-panel);
+}
+
+.clock {
+  flex: 1;
+  min-width: 0;
+}
+
+.big {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.track {
+  position: relative;
+  height: 2.6rem;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--flow-panel);
+}
+
+.available {
+  position: absolute;
+  inset-block: 0;
+  border-inline: 2px solid var(--flow-available-edge);
+  background: var(--flow-available);
+}
+
+.segment {
+  position: absolute;
+  inset-block: 0.45rem;
+  min-width: 3px;
+  border-radius: 4px;
+}
+
+.segment[data-tone='hands-on'] {
+  z-index: 1;
+  background: var(--flow-ink);
+}
+
+.segment[data-tone='room'] {
+  border: 1.5px solid var(--flow-warm);
+  background: var(--flow-warm-soft);
+}
+
+.segment[data-tone='fridge'] {
+  border: 1.5px solid var(--flow-cold);
+  background: var(--flow-cold-soft);
+}
+
+.segment[data-tone='oven'] {
+  background: var(--flow-crust);
+}
+
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.steps {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 0.8rem 5.2rem 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+.swatch[data-tone='available'] {
+  border: 1px solid var(--flow-available-edge);
+  background: var(--flow-available);
+}
+
+.swatch[data-tone='hands-on'] {
+  background: var(--flow-ink);
+}
+
+.swatch[data-tone='room'] {
+  border: 1.5px solid var(--flow-warm);
+  background: var(--flow-warm-soft);
+}
+
+.swatch[data-tone='fridge'] {
+  border: 1.5px solid var(--flow-cold);
+  background: var(--flow-cold-soft);
+}
+
+.swatch[data-tone='oven'] {
+  background: var(--flow-crust);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.legend span {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.reminder {
+  border: 2px solid var(--flow-ink);
+  border-radius: var(--mantine-radius-lg);
+  padding: var(--mantine-spacing-md);
+  background: var(--mantine-color-body);
+}
+
+/* The 1 to 7 scale stays on one row at any width: the number sits under its radio. */
+.scale {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-top: var(--mantine-spacing-xs);
+}
+
+.scaleOption {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.scaleLabel {
+  padding-inline: 0;
+}
+
+.window {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--flow-available-edge);
+  border-radius: 99px;
+  background: var(--flow-available);
+  font-weight: 700;
+}

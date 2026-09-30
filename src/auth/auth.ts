@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { db } from '../db/client'
 import * as schema from '../db/schema'
+import { experienceSchema } from './experience'
 
 const LOCAL_ORIGIN = 'http://localhost:3000'
 
@@ -21,6 +22,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'pg', schema, usePlural: true }),
   emailAndPassword: { enabled: true, requireEmailVerification: false },
+  user: { additionalFields: { experience: { type: 'string', required: true, validator: { input: experienceSchema } } } },
   rateLimit: { enabled: true, storage: 'database' },
   advanced: { useSecureCookies: process.env.NODE_ENV === 'production' },
   plugins: [tanstackStartCookies()],
