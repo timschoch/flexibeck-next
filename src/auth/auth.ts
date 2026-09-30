@@ -26,7 +26,7 @@ export const auth = betterAuth({
   rateLimit: {
     enabled: true,
     storage: 'database',
-    customRules: { '/sign-up/email': { window: 3600, max: 50 } },
+    customRules: { '/sign-up/email': { window: 5, max: 10 } },
   },
   advanced: { useSecureCookies: process.env.NODE_ENV === 'production' },
   plugins: [tanstackStartCookies()],
