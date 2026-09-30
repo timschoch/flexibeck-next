@@ -9,6 +9,7 @@ import type {
   ParentStep,
   Plan,
   PlanInput,
+  PlanMode,
   PlannableDuration,
   PlannedStep,
   Recipe,
@@ -26,6 +27,8 @@ const MAX_PLANS = 3
 const MAX_HACKS_PER_PLAN = 2
 /** In `ready-by` mode a plan finishes at most this early, never late. Owner's call. */
 const MAX_EARLY_MINUTES = 2 * 60
+/** How far `findClosestPlan` looks: one week, the length of the week plan. */
+const SEARCH_HORIZON_MINUTES = 7 * 24 * 60
 const PERCENT = 100
 const EVERYWHERE: TimeRange[] = [{ start: -Infinity, end: Infinity }]
 
@@ -33,9 +36,8 @@ const EVERYWHERE: TimeRange[] = [{ start: -Infinity, end: Infinity }]
 type Segment = {
   step: LeafStep
   parentId?: string
+  /** The plan picks the length inside it. */
   duration: PlannableDuration
-  /** The plan picks the length inside `duration`. */
-  flexible: boolean
   /** The plan picks when it ends, so earlier deviation stops here. */
   absorbs: boolean
   /** Fills a fermentation budget: its deviation covers the parent's room fermentation. */
@@ -147,7 +149,6 @@ function segmentOf(step: LeafStep, parentId: string | undefined, context: Contex
     step,
     ...(parentId ? { parentId } : {}),
     duration: flexible ? step.duration : { min: length, max: length },
-    flexible,
     absorbs: flexible,
     fermenting: false,
     roomBefore: 0,
@@ -162,7 +163,6 @@ function expandInputs(step: Step, context: Context): Segment[][] {
       // A branch has no room to move: every length it could pick is fixed at its shortest.
       expand([input], new Map(), context).map((segment) => ({
         ...segment,
-        flexible: false,
         duration: { min: segment.duration.min, max: segment.duration.min },
       })),
     )
@@ -178,11 +178,11 @@ function speedOf(step: LeafStep, parent: ParentStep, change: Change, kitchen: Ki
   return fermentationSpeed(temperature, parent.fermentationBudget?.temperature ?? temperature) * change.speed
 }
 
-function synthesize(parent: ParentStep, environment: Environment, duration: PlannableDuration): LeafStep {
+function synthesize(step: Step, environment: Environment, duration: PlannableDuration): LeafStep {
   return {
-    id: `${parent.id}-${environment}`,
+    id: `${step.id}-${environment}`,
     kind: 'rest',
-    name: environment === 'fridge' ? `${parent.name} in the fridge` : parent.name,
+    name: environment === 'fridge' ? `${step.name} in the fridge` : step.name,
     presence: 'unattended',
     environment,
     duration,
@@ -241,7 +241,6 @@ function expandParent(parent: ParentStep, change: Change, context: Context): Seg
     const duration = { min: Math.round(earliest / speed), max: Math.round(remaining / speed) }
     const segment: Segment = {
       ...plain({ ...leaf, duration }),
-      flexible: duration.min < duration.max,
       absorbs: false,
       fermenting: true,
       roomBefore: room,
@@ -255,8 +254,12 @@ function expand(steps: Step[], changes: Map<string, Change>, context: Context): 
   return steps
     .filter((step) => !context.startState.completedStepIds.includes(step.id))
     .flatMap((step) => {
-      if (!isParent(step)) return [segmentOf(step, undefined, context)]
-      const segments = expandParent(step, changes.get(step.id) ?? { speed: 1 }, context)
+      const change = changes.get(step.id) ?? { speed: 1 }
+      if (!isParent(step)) {
+        const body = change.body && synthesize(step, change.body.environment, change.body.duration)
+        return [segmentOf(body ? { ...body, kind: step.kind, inputs: step.inputs } : step, undefined, context)]
+      }
+      const segments = expandParent(step, change, context)
       const [first] = segments
       if (first) first.inputs = [...expandInputs(step, context), ...first.inputs]
       return segments
@@ -279,8 +282,8 @@ function listLengths(duration: PlannableDuration): number[] {
 }
 
 /**
- * Places the segments forward from `start`. A flexible segment takes the shortest length
- * that lets the fixed segments after it fit into availability. Nothing when none does.
+ * Places the segments forward from `start`. A segment with a range of lengths takes the
+ * shortest one that lets every segment after it fit into availability. Nothing when none does.
  */
 function place(
   segments: Segment[],
@@ -292,20 +295,6 @@ function place(
   const isAllowed = (segment: Segment, range: TimeRange) =>
     range.start >= notBefore && (segment.step.presence === 'unattended' || isInsideAvailability(ranges, range))
 
-  const placeRun = (from: number, time: number) => {
-    const placements: Placement[] = []
-    let index = from
-    for (; index < segments.length && !segments[index]?.flexible; index++) {
-      const segment = segments[index] as Segment
-      const inputs = placeInputs(segment, time)
-      const range = { start: time, end: time + segment.duration.max }
-      if (!inputs || !isAllowed(segment, range)) return undefined
-      placements.push(...inputs, { segment, branch, ...range })
-      time = range.end
-    }
-    return { placements, end: time, next: index }
-  }
-
   const placeInputs = (segment: Segment, end: number) => {
     const placements: Placement[] = []
     for (const [index, input] of segment.inputs.entries()) {
@@ -316,33 +305,25 @@ function place(
     return placements
   }
 
-  const findFitting = (index: number, time: number, duration: PlannableDuration) => {
-    for (const length of listLengths(duration)) {
-      const run = placeRun(index + 1, time + length)
-      if (run) return { length, run }
+  // Where the rest of the chain cannot fit, by segment index and start time: each is tried once.
+  const dead = new Set<string>()
+  const placeFrom = (index: number, time: number): Placement[] | undefined => {
+    const segment = segments[index]
+    if (!segment) return []
+    const key = `${index}@${time}`
+    if (dead.has(key)) return undefined
+    const inputs = placeInputs(segment, time)
+    if (inputs) {
+      for (const length of listLengths(segment.duration)) {
+        const range = { start: time, end: time + length }
+        const rest = isAllowed(segment, range) && placeFrom(index + 1, range.end)
+        if (rest) return [...inputs, { segment, branch, ...range }, ...rest]
+      }
     }
+    dead.add(key)
     return undefined
   }
-
-  const placements: Placement[] = []
-  let time = start
-  let index = 0
-  while (index < segments.length) {
-    const segment = segments[index] as Segment
-    if (!segment.flexible) {
-      const run = placeRun(index, time)
-      if (!run) return undefined
-      placements.push(...run.placements)
-      ;({ end: time, next: index } = run)
-      continue
-    }
-    const inputs = placeInputs(segment, time)
-    const fitting = inputs && findFitting(index, time, segment.duration)
-    if (!fitting) return undefined
-    placements.push(...inputs, { segment, branch, start: time, end: time + fitting.length }, ...fitting.run.placements)
-    ;({ end: time, next: index } = fitting.run)
-  }
-  return placements
+  return placeFrom(0, start)
 }
 
 function deviationOf(placement: Placement): number {
@@ -399,14 +380,10 @@ function spanOf(placements: Placement[]): number {
   return Math.max(...placements.map((placement) => placement.end)) - Math.min(...placements.map((placement) => placement.start))
 }
 
-/**
- * Fits a recipe into the baker's availability. Tries hack combinations (and start times in
- * `ready-by` mode), keeps plans whose hands-on and attended steps lie inside availability,
- * and returns up to three, ranked by fewest hacks, least change in length, then finish time.
- * In `ready-by` mode a plan must finish inside `MAX_EARLY_MINUTES` before the finish time;
- * when none does, the result is empty.
- */
-export function plan(input: PlanInput): Plan[] {
+/** One hack combination, expanded and ready to place. */
+type Candidate = { segments: Segment[]; lead: number; longest: number; hackIds: string[]; baseline: number }
+
+function listCandidates(input: PlanInput): Candidate[] {
   const context: Context = {
     kitchen: input.kitchen,
     startState: input.startState ?? { completedStepIds: [], budgetFilled: {} },
@@ -418,46 +395,88 @@ export function plan(input: PlanInput): Plan[] {
   const applicable = input.hacks.filter((hack) => hack.requirements.every((requirement) => isMet(requirement, input.recipe)))
   const combinations = Array.from({ length: MAX_HACKS_PER_PLAN + 1 }, (_, size) => listCombinations(applicable, size)).flat()
 
-  const plans: Plan[] = []
-  for (const combination of combinations) {
+  return combinations.flatMap((combination) => {
     const applied = applyHacks(input.recipe, remaining, combination)
-    if (!applied) continue
+    if (!applied) return []
     const segments = expand(applied.steps, applied.changes, context)
-    if (segments.length === 0) continue
+    if (segments.length === 0) return []
     const lead = leadOf(segments)
-    const longest = lead + totalLength(segments, 'max')
-    const hackIds = combination.map((hack) => hack.id)
+    return [{ segments, lead, longest: lead + totalLength(segments, 'max'), hackIds: combination.map((hack) => hack.id), baseline }]
+  })
+}
 
+/** The first start on the search grid at or after `time`. */
+function roundUp(time: number): number {
+  return Math.ceil(time / SEARCH_STEP_MINUTES) * SEARCH_STEP_MINUTES
+}
+
+/** Fewest hacks, least change in length, then finish time. */
+function rank(plans: Plan[], mode: PlanMode): Plan[] {
+  const finishScore = (result: Plan) => (mode.kind === 'ready-by' ? mode.finish - result.finish : result.finish)
+  return plans.sort(
+    (left, right) =>
+      left.hackIds.length - right.hackIds.length ||
+      Math.abs(left.lengthChange) - Math.abs(right.lengthChange) ||
+      finishScore(left) - finishScore(right),
+  )
+}
+
+/**
+ * Fits a recipe into the baker's availability. Tries hack combinations (and start times in
+ * `ready-by` mode), keeps plans whose hands-on and attended steps lie inside availability,
+ * and returns up to three, ranked by fewest hacks, least change in length, then finish time.
+ * In `ready-by` mode a plan must finish inside `MAX_EARLY_MINUTES` before the finish time;
+ * when none does, the result is empty.
+ */
+export function plan(input: PlanInput): Plan[] {
+  const plans = listCandidates(input).flatMap(({ segments, lead, longest, hackIds, baseline }) => {
     if (input.mode.kind === 'start-now') {
       const start = input.now + lead
       const ranges = listTimeRanges(input.availability, { start: input.now, end: start + longest })
       const placements = place(segments, start, ranges, input.now)
-      if (placements) plans.push(toPlan(placements, hackIds, baseline))
-      continue
+      return placements ? [toPlan(placements, hackIds, baseline)] : []
     }
 
     const { finish } = input.mode
-    const earliest = input.now + lead
     const window: TimeRange = { start: finish - MAX_EARLY_MINUTES, end: finish }
     const ranges = listTimeRanges(input.availability, { start: input.now, end: finish })
     let best: Plan | undefined
-    for (let start = Math.ceil(earliest / SEARCH_STEP_MINUTES) * SEARCH_STEP_MINUTES; start < finish; start += SEARCH_STEP_MINUTES) {
+    for (let start = roundUp(input.now + lead); start < finish; start += SEARCH_STEP_MINUTES) {
       const placements = place(segments, start, ranges, input.now)
       if (!placements) continue
       const candidate = toPlan(placements, hackIds, baseline)
       const fits = candidate.finish >= window.start && candidate.finish <= window.end
       if (fits && (!best || candidate.finish >= best.finish)) best = candidate
     }
-    if (best) plans.push(best)
-  }
+    return best ? [best] : []
+  })
+  return rank(plans, input.mode).slice(0, MAX_PLANS)
+}
 
-  const finishScore = (result: Plan) => (input.mode.kind === 'ready-by' ? input.mode.finish - result.finish : result.finish)
-  return plans
-    .sort(
-      (left, right) =>
-        left.hackIds.length - right.hackIds.length ||
-        Math.abs(left.lengthChange) - Math.abs(right.lengthChange) ||
-        finishScore(left) - finishScore(right),
-    )
-    .slice(0, MAX_PLANS)
+/**
+ * For when `plan` finds nothing: the plan nearest to what the baker asked for, found by moving
+ * the time. `start-now`: the earliest later start. `ready-by`: the finish closest to the finish
+ * time, earlier or later. Nothing when no start within `SEARCH_HORIZON_MINUTES` fits.
+ */
+export function findClosestPlan(input: PlanInput): Plan | undefined {
+  const { mode } = input
+  const target = mode.kind === 'ready-by' ? mode.finish : input.now
+  const distanceOf = (result: Plan) => (mode.kind === 'ready-by' ? Math.abs(result.finish - target) : result.start - input.now)
+
+  const plans = listCandidates(input).flatMap(({ segments, lead, longest, hackIds, baseline }) => {
+    const last = target + SEARCH_HORIZON_MINUTES
+    const ranges = listTimeRanges(input.availability, { start: input.now, end: last + longest })
+    let best: Plan | undefined
+    for (let start = roundUp(input.now + lead); start < last; start += SEARCH_STEP_MINUTES) {
+      // Every later start finishes later still: no closer plan follows.
+      if (best && start - lead - target > distanceOf(best)) break
+      const placements = place(segments, start, ranges, input.now)
+      if (!placements) continue
+      const candidate = toPlan(placements, hackIds, baseline)
+      if (!best || distanceOf(candidate) < distanceOf(best)) best = candidate
+    }
+    return best ? [best] : []
+  })
+  const [closest] = rank(plans, mode).sort((left, right) => distanceOf(left) - distanceOf(right))
+  return closest
 }

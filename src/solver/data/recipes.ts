@@ -29,7 +29,7 @@ function coldProof(id: string, hours: { min: number; max: number }): LeafStep {
   return {
     id,
     kind: 'proof',
-    name: 'Proof in the fridge',
+    name: 'Proof',
     presence: 'unattended',
     environment: 'fridge',
     duration: { min: hours.min * HOUR, max: hours.max * HOUR },
