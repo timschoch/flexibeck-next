@@ -1,7 +1,8 @@
-import { Button, Stack, Text, Title } from '@mantine/core'
+import { Anchor, Button, Stack, Text, Title } from '@mantine/core'
 import { useId, useState } from 'react'
 import { track } from '../analytics/analytics'
 import { formatDayTimeRange, formatLength } from '../plan-flow/local-time'
+import { findStepVideo } from '../solver/data/step-videos'
 import type { PlannedStep } from '../solver/types'
 import classes from './plan-flow.module.css'
 
@@ -29,6 +30,7 @@ export function ReminderCard({ steps, onFirstDone }: { steps: PlannedStep[]; onF
   }
 
   const startsExactly = next.startWindow.end - next.startWindow.start < 1
+  const video = findStepVideo(next.stepId)
   return (
     <section className={classes.reminder} aria-labelledby={headingId}>
       <Stack gap="xs">
@@ -47,6 +49,16 @@ export function ReminderCard({ steps, onFirstDone }: { steps: PlannedStep[]; onF
         </div>
         <Text size="sm">Takes {formatLength(next.end - next.start)}</Text>
         {next.cue && <Text size="sm">Cue: {next.cue}</Text>}
+        {video && (
+          <Text size="sm">
+            <Anchor href={video.url} target="_blank" rel="noopener" aria-label={`Watch how: ${next.name}`} inherit>
+              Watch how
+            </Anchor>
+            <Text span inherit c="dimmed">
+              {' · '}Marcel Paa on YouTube
+            </Text>
+          </Text>
+        )}
         <Button onClick={handleDone}>Done</Button>
       </Stack>
     </section>

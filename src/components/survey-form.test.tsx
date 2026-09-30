@@ -14,7 +14,7 @@ describe('SurveyForm', () => {
   })
 
   it('asks how easy the first bake was on a scale from 1 to 7', () => {
-    render(<SurveyForm />)
+    render(<SurveyForm experience="novice" />)
 
     const scale = screen.getByRole('radiogroup', { name: /^How easy was your first bake\?/ })
     const options = within(scale).getAllByRole('radio')
@@ -27,30 +27,30 @@ describe('SurveyForm', () => {
     expect(track).not.toHaveBeenCalled()
   })
 
-  it('fires survey_answered once with the score and the comment, then says thank you', async () => {
-    render(<SurveyForm />)
+  it('fires survey_answered once with the score, the comment and the experience, then says thank you', async () => {
+    render(<SurveyForm experience="novice" />)
 
     await userEvent.click(screen.getByRole('radio', { name: '6' }))
     await userEvent.type(screen.getByRole('textbox', { name: 'What was hard?' }), ' The folding ')
     await userEvent.click(screen.getByRole('button', { name: 'Send answer' }))
 
     expect(track).toHaveBeenCalledTimes(1)
-    expect(track).toHaveBeenCalledWith('survey_answered', { question: 'seq', score: 6, comment: 'The folding' })
+    expect(track).toHaveBeenCalledWith('survey_answered', { question: 'seq', score: 6, comment: 'The folding', experience: 'novice' })
     expect(screen.getByText('Thank you')).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Send answer' })).toBeNull()
   })
 
   it('sends an empty comment when the baker writes none', async () => {
-    render(<SurveyForm />)
+    render(<SurveyForm experience="novice" />)
 
     await userEvent.click(screen.getByRole('radio', { name: '2' }))
     await userEvent.click(screen.getByRole('button', { name: 'Send answer' }))
 
-    expect(track).toHaveBeenCalledWith('survey_answered', { question: 'seq', score: 2, comment: '' })
+    expect(track).toHaveBeenCalledWith('survey_answered', { question: 'seq', score: 2, comment: '', experience: 'novice' })
   })
 
   it('sends nothing without a score', async () => {
-    render(<SurveyForm />)
+    render(<SurveyForm experience="novice" />)
 
     await userEvent.type(screen.getByRole('textbox', { name: 'What was hard?' }), 'The folding')
     await userEvent.click(screen.getByRole('button', { name: 'Send answer' }))

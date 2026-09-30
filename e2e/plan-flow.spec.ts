@@ -41,6 +41,9 @@ test('a baker plans a bake, accepts plan 1, marks the first reminder done and an
   await expect(page.getByRole('heading', { name: 'Your bake' })).toBeVisible()
   await expect(page.getByText('Step 5 of 5')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Mix flour and water' })).toBeVisible()
+  const watchHow = page.getByRole('link', { name: 'Watch how: Mix flour and water' })
+  await expect(watchHow).toHaveAttribute('href', /youtube\.com\/watch\?v=K4TdJsa1voI/)
+  await expect(watchHow).toHaveAttribute('target', '_blank')
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('heading', { name: 'Mix in salt and sourdough' })).toBeVisible()
 

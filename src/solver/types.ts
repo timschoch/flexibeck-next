@@ -69,6 +69,15 @@ export type Recipe = {
   steps: Step[]
 }
 
+/** A creator video that shows one hands-on step. `url` opens it at the moment of that step. */
+export type StepVideo = {
+  stepId: string
+  title: string
+  url: string
+  /** The creator's page that embeds the video. */
+  source: string
+}
+
 /** The steps an effect changes: by step kind, optional environment, and first, last or all. */
 export type Target = {
   stepKind: StepKind

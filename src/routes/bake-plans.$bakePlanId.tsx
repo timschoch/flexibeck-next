@@ -13,6 +13,7 @@ import { recipes } from '../solver/data/recipes'
 export const Route = createFileRoute('/bake-plans/$bakePlanId')({
   beforeLoad: ({ context }) => {
     if (!context.session) throw redirect({ to: '/sign-in' })
+    return { session: context.session }
   },
   loader: async ({ params }) => {
     const [bakePlan, availability] = await Promise.all([fetchBakePlan({ data: params.bakePlanId }), fetchAvailability()])
@@ -24,6 +25,7 @@ export const Route = createFileRoute('/bake-plans/$bakePlanId')({
 
 function BakePlanPage() {
   const { recipeId, plan, availability } = Route.useLoaderData()
+  const { session } = Route.useRouteContext()
   const recipe = recipes.find((candidate) => candidate.id === recipeId)
   const [firstReminderDone, setFirstReminderDone] = useState(false)
 
@@ -33,7 +35,7 @@ function BakePlanPage() {
         {recipe?.name}. Bread ready {formatDayTime(plan.finish)}.
       </Text>
       <ReminderCard steps={plan.steps} onFirstDone={() => setFirstReminderDone(true)} />
-      {firstReminderDone && <SurveyForm />}
+      {firstReminderDone && <SurveyForm experience={session.user.experience} />}
       <Title order={2} size="h4">
         Timeline
       </Title>
