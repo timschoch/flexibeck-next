@@ -11,9 +11,9 @@ import { localNow } from '../plan-flow/local-time'
 import { createBakePlan, fetchAvailability, saveAvailability } from '../plan-flow/store'
 import { hacks } from '../solver/data/hacks'
 import { recipes } from '../solver/data/recipes'
-import { plan } from '../solver/plan'
-import { parseLocalTime } from '../solver/time'
-import type { Plan, Recipe } from '../solver/types'
+import { findClosestPlan, plan } from '../solver/plan'
+import { formatLocalTime, parseLocalTime } from '../solver/time'
+import type { Plan, PlanInput, Recipe } from '../solver/types'
 
 // The flow's state lives in the URL: a reload keeps the screen and the browser's back button works.
 const planSearchSchema = z.object({
@@ -77,32 +77,36 @@ type RankedPlansProps = {
 function RankedPlans({ recipe, settings, mode, finish }: RankedPlansProps) {
   const navigate = Route.useNavigate()
   const router = useRouter()
-  const [plans, setPlans] = useState<Plan[]>()
+  const [result, setResult] = useState<{ plans: Plan[]; closest?: Plan }>()
 
   // Only the browser knows the baker's clock, so the solver runs after hydration, not on the server.
   useEffect(() => {
-    setPlans(
-      plan({
-        recipe,
-        hacks,
-        availability: settings,
-        kitchen: { temperature: settings.kitchenTemperature ?? DEFAULT_KITCHEN_TEMPERATURE },
-        now: localNow(),
-        mode: mode === 'ready-by' && finish ? { kind: 'ready-by', finish: parseLocalTime(finish) } : { kind: 'start-now' },
-      }),
-    )
+    const input = {
+      recipe,
+      hacks,
+      availability: settings,
+      kitchen: { temperature: settings.kitchenTemperature ?? DEFAULT_KITCHEN_TEMPERATURE },
+      now: localNow(),
+      mode: mode === 'ready-by' && finish ? { kind: 'ready-by', finish: parseLocalTime(finish) } : { kind: 'start-now' },
+    } satisfies PlanInput
+    const plans = plan(input)
+    setResult(plans.length > 0 ? { plans } : { plans, closest: findClosestPlan(input) })
   }, [recipe, settings, mode, finish])
 
-  if (!plans) return null
+  if (!result) return null
 
   return (
     <PlansPage
-      plans={plans}
+      plans={result.plans}
+      closest={result.closest}
       availability={settings}
       onAccept={async (accepted) => {
         const bakePlanId = await createBakePlan({ data: { recipeId: recipe.id, mode, plan: accepted } })
         await router.navigate({ to: '/bake-plans/$bakePlanId', params: { bakePlanId } })
       }}
+      onChooseFinish={(next) =>
+        navigate({ search: { screen: 'plans', recipeId: recipe.id, mode: 'ready-by', finish: formatLocalTime(next) } })
+      }
       onChangeAvailability={() => navigate({ search: { screen: 'availability', recipeId: recipe.id } })}
     />
   )

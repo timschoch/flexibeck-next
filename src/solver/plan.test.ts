@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { isInsideAvailability, listTimeRanges } from './availability'
 import { hacks } from './data/hacks'
-import { plan } from './plan'
+import { recipes } from './data/recipes'
+import { findClosestPlan, plan } from './plan'
 import { formatLocalTime, parseLocalTime } from './time'
 import type { Availability, AvailabilityBlock, LeafStep, Plan, PlanInput, PlannedStep, Recipe, Weekday } from './types'
 
@@ -290,5 +291,89 @@ describe('plan: re-planning from a start state', () => {
     const lastRest = findStep(best, 'bulk-rest-4')
     expect(lastRest.start).toBe(parseLocalTime('2026-10-02T20:00'))
     expect(lastRest.end - lastRest.start).toBe(4 * HOUR)
+  })
+})
+
+describe('plan: hacks on a step without children', () => {
+  it('turns the cold proof of 9 to 5 into a 2-3 h room proof after a cold bulk', () => {
+    const nineToFive = recipes.find((recipe) => recipe.id === 'nine-to-five') as Recipe
+    const coldBulk = hacks.filter((hack) => hack.id === 'cold-bulk')
+    const hacked = plan(input({ recipe: nineToFive, hacks: coldBulk, availability: allDay })).find(
+      (result) => result.hackIds.length > 0,
+    )
+    if (!hacked) throw new Error('no plan with the cold bulk')
+    const proof = hacked.steps.find((step) => step.kind === 'proof')
+    expect(proof?.environment).toBe('room')
+    expect(proof && proof.end - proof.start).toBe(2 * HOUR)
+  })
+})
+
+describe('plan: a longer wait now lets a later step fit', () => {
+  // The first rest must wait 75 min, not 60, or the bake after the 8.5 h proof starts before 16:00.
+  const waiting: Recipe = {
+    id: 'waiting',
+    name: 'Two flexible rests',
+    source: 'test fixture',
+    levainPercent: 10,
+    steps: [
+      { id: 'mix', kind: 'mix', name: 'Mix', presence: 'hands-on', environment: 'room', duration: { min: 5, max: 5 } },
+      { id: 'rest', kind: 'rest', name: 'Rest', presence: 'unattended', environment: 'room', duration: { min: HOUR, max: 10 * HOUR } },
+      { id: 'shape', kind: 'shape', name: 'Shape', presence: 'hands-on', environment: 'room', duration: { min: 15, max: 15 } },
+      { id: 'proof', kind: 'proof', name: 'Proof', presence: 'unattended', environment: 'room', duration: { min: 8 * HOUR, max: 8.5 * HOUR } },
+      { id: 'bake', kind: 'bake', name: 'Bake', presence: 'attended', environment: 'oven', duration: { min: 30, max: 30 } },
+    ],
+  }
+
+  it('finds the plan a shortest-first choice misses', () => {
+    const now = parseLocalTime('2026-10-02T06:00')
+    const [best] = plan(input({ recipe: waiting, hacks: [], now }))
+    if (!best) throw new Error('no plan')
+    expect(findStep(best, 'rest').end - findStep(best, 'rest').start).toBe(75)
+    expect(at(findStep(best, 'bake').start)).toBe('2026-10-02T16:05')
+  })
+})
+
+describe('findClosestPlan: never a dead end', () => {
+  const monday = parseLocalTime('2026-10-05T00:00')
+  const QUARTER_HOUR = 15
+
+  // The ticket's sweep: every base recipe, a start every 15 min over one day, the vision's availability.
+  it('finds a plan for every base recipe at every start time', () => {
+    for (const recipe of recipes) {
+      for (let now = monday; now < monday + 24 * HOUR; now += QUARTER_HOUR) {
+        const request = input({ recipe, now })
+        const plans = plan(request)
+        const closest = plans.length > 0 ? plans[0] : findClosestPlan(request)
+        expect(closest, `${recipe.id} at ${at(now)}`).toBeDefined()
+      }
+    }
+  })
+
+  it('starts later when the baker is away now', () => {
+    const now = parseLocalTime('2026-10-05T11:00')
+    const request = input({ recipe: recipes.find((recipe) => recipe.id === 'sauerteig-basic-brot') as Recipe, now })
+    expect(plan(request)).toEqual([])
+    const closest = findClosestPlan(request)
+    if (!closest) throw new Error('no closest plan')
+    expect(at(closest.start)).toBe('2026-10-05T16:00')
+    expectInsideAvailability([closest], morningAndEvening)
+    // The screen's one change: plan for bread ready by the closest plan's finish.
+    const [readyBy] = plan({ ...request, mode: { kind: 'ready-by', finish: closest.finish } })
+    expect(readyBy?.finish).toBe(closest.finish)
+  })
+
+  it('moves the finish time when no plan is ready by it', () => {
+    const now = parseLocalTime('2026-10-02T12:00')
+    const finish = parseLocalTime('2026-10-02T13:00')
+    const closest = findClosestPlan(input({ now, mode: { kind: 'ready-by', finish } }))
+    if (!closest) throw new Error('no closest plan')
+    expect(closest.finish > finish).toBe(true)
+    expect(closest.start >= now).toBe(true)
+    expectInsideAvailability([closest], morningAndEvening)
+  })
+
+  it('finds nothing when the baker is never available', () => {
+    const never: Availability = { weekPlan: everyDay([]), overrides: [] }
+    expect(findClosestPlan(input({ availability: never }))).toBeUndefined()
   })
 })

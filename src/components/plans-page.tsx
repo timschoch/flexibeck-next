@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Stack, Text, Title } from '@mantine/core'
-import { useEffect, useId, useState } from 'react'
+import { type ReactNode, useEffect, useId, useState } from 'react'
 import { track } from '../analytics/analytics'
 import { formatDayTime, formatLength } from '../plan-flow/local-time'
 import { hacks } from '../solver/data/hacks'
@@ -16,13 +16,13 @@ function formatScore(score: number): string {
 
 type CardProps = {
   plan: Plan
-  rank: number
+  title: string
   availability: Availability
-  pending: boolean
-  onAccept: () => void
+  /** The button that acts on this plan. */
+  children: ReactNode
 }
 
-function PlanCard({ plan, rank, availability, pending, onAccept }: CardProps) {
+function PlanCard({ plan, title, availability, children }: CardProps) {
   const headingId = useId()
   const used = plan.hackIds.map((id) => hacks.find((hack) => hack.id === id)).filter((hack): hack is Hack => hack !== undefined)
   const deviation = (plan.finishWindow.end - plan.finishWindow.start) / 2
@@ -31,7 +31,7 @@ function PlanCard({ plan, rank, availability, pending, onAccept }: CardProps) {
     <Card component="section" aria-labelledby={headingId} withBorder radius="lg" padding="md">
       <Stack gap="sm">
         <Title order={2} size="h4" id={headingId}>
-          Plan {rank}
+          {title}
         </Title>
         <div>
           <Text size="sm" c="dimmed">
@@ -85,9 +85,7 @@ function PlanCard({ plan, rank, availability, pending, onAccept }: CardProps) {
 
         <TimelineCard plan={plan} availability={availability} handsOnOnly />
 
-        <Button onClick={onAccept} loading={pending}>
-          Accept this plan
-        </Button>
+        {children}
       </Stack>
     </Card>
   )
@@ -96,13 +94,17 @@ function PlanCard({ plan, rank, availability, pending, onAccept }: CardProps) {
 type Props = {
   /** Ranked, best first. */
   plans: Plan[]
+  /** Shown when no plan fits: the nearest plan at another time. */
+  closest?: Plan
   availability: Availability
   /** Saves the plan. The page counts the plan as accepted once this resolves. */
   onAccept: (plan: Plan) => Promise<void>
+  /** Plans again for bread ready by `finish`. */
+  onChooseFinish: (finish: number) => void
   onChangeAvailability: () => void
 }
 
-export function PlansPage({ plans, availability, onAccept, onChangeAvailability }: Props) {
+export function PlansPage({ plans, closest, availability, onAccept, onChooseFinish, onChangeAvailability }: Props) {
   const [pendingRank, setPendingRank] = useState<number>()
   const [errorMessage, setErrorMessage] = useState<string>()
   const count = plans.length
@@ -128,8 +130,10 @@ export function PlansPage({ plans, availability, onAccept, onChangeAvailability 
     <PlanFlowLayout position={4} title="Your plans">
       {count === 0 ? (
         <Alert color="yellow" title="No plan fits your availability">
-          A hands-on step of this recipe would fall outside your available hours. Add an availability block, or go back and
-          choose another time.
+          A hands-on step of this recipe would fall outside your available hours.{' '}
+          {closest
+            ? `The closest plan has the bread ready ${formatDayTime(closest.finish)}.`
+            : 'Add an availability block, or go back and choose another time.'}
         </Alert>
       ) : (
         <>
@@ -154,15 +158,17 @@ export function PlansPage({ plans, availability, onAccept, onChangeAvailability 
         </Alert>
       )}
       {plans.map((plan, index) => (
-        <PlanCard
-          key={index}
-          plan={plan}
-          rank={index + 1}
-          availability={availability}
-          pending={pendingRank === index + 1}
-          onAccept={() => handleAccept(plan, index + 1)}
-        />
+        <PlanCard key={index} plan={plan} title={`Plan ${index + 1}`} availability={availability}>
+          <Button onClick={() => handleAccept(plan, index + 1)} loading={pendingRank === index + 1}>
+            Accept this plan
+          </Button>
+        </PlanCard>
       ))}
+      {count === 0 && closest && (
+        <PlanCard plan={closest} title="Closest plan" availability={availability}>
+          <Button onClick={() => onChooseFinish(closest.finish)}>Plan bread ready by {formatDayTime(closest.finish)}</Button>
+        </PlanCard>
+      )}
       <Button variant="default" onClick={onChangeAvailability}>
         Change availability
       </Button>
