@@ -17,6 +17,8 @@ export function startAnalytics() {
     autocapture: false,
     capture_pageview: false,
     disable_session_recording: true,
+    // Simulated users are browser bots; posthog-js drops their events otherwise.
+    opt_out_useragent_filter: true,
   })
   posthog.register({ app_version: __APP_VERSION__ })
 }
