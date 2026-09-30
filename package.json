@@ -16,11 +16,13 @@
   },
   "dependencies": {
     "@mantine/core": "^9.6.3",
+    "@mantine/dates": "^9.6.3",
     "@mantine/hooks": "^9.6.3",
     "@neondatabase/serverless": "^1.1.0",
     "@tanstack/react-router": "^1.170.40",
     "@tanstack/react-start": "^1.168.59",
     "better-auth": "^1.7.6",
+    "dayjs": "^1.11.23",
     "drizzle-orm": "^0.45.3",
     "nitro": "3.0.260903-beta",
     "posthog-js": "^1.434.17",

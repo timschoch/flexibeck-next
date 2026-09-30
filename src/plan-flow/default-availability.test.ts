@@ -3,12 +3,15 @@ import { availabilitySchema } from '../db/json-schemas'
 import { WEEKDAYS, defaultAvailability } from './default-availability'
 
 describe('defaultAvailability', () => {
-  it("is the vision's example on every weekday: 06 to 10 and 16 to 22", () => {
-    for (const weekday of WEEKDAYS) {
+  it('is a typical week: before and after work on weekdays, the day on weekends', () => {
+    for (const weekday of WEEKDAYS.slice(0, 5)) {
       expect(defaultAvailability.weekPlan[weekday]).toEqual([
-        { start: '06:00', end: '10:00' },
-        { start: '16:00', end: '22:00' },
+        { start: '06:00', end: '08:00' },
+        { start: '17:00', end: '22:00' },
       ])
+    }
+    for (const weekday of WEEKDAYS.slice(5)) {
+      expect(defaultAvailability.weekPlan[weekday]).toEqual([{ start: '08:00', end: '22:00' }])
     }
     expect(defaultAvailability.overrides).toEqual([])
   })

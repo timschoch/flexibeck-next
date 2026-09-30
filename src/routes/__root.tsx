@@ -1,5 +1,6 @@
 import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core'
 import mantineStyles from '@mantine/core/styles.css?url'
+import mantineDatesStyles from '@mantine/dates/styles.css?url'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { startAnalytics } from '../analytics/analytics'
@@ -15,7 +16,10 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'Flexibeck' },
     ],
-    links: [{ rel: 'stylesheet', href: mantineStyles }],
+    links: [
+      { rel: 'stylesheet', href: mantineStyles },
+      { rel: 'stylesheet', href: mantineDatesStyles },
+    ],
   }),
   component: RootComponent,
 })

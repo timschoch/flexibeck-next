@@ -1,4 +1,5 @@
 import { Alert, Button, CloseButton, Group, NumberInput, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core'
+import { TimePicker } from '@mantine/dates'
 import { useId, useState } from 'react'
 import { track } from '../analytics/analytics'
 import { type AvailabilitySettings, availabilitySchema } from '../db/json-schemas'
@@ -18,6 +19,30 @@ const WEEKDAY_NAMES: Record<Weekday, string> = {
 }
 const NEW_BLOCK: AvailabilityBlock = { start: '12:00', end: '13:00' }
 const FRIDGE_TEMPERATURE_EXAMPLE = 5
+const MINUTES_STEP = 15
+
+type ClockFieldProps = {
+  /** Names the block in both controls, for example `Monday block 1 start`. */
+  name: string
+  value: string
+  onChange: (value: string) => void
+}
+
+/** A time of day, always in 24 h like the timeline (Glue I2). Hour and minute are one spin button each. */
+function ClockField({ name, value, onChange }: ClockFieldProps) {
+  return (
+    <TimePicker
+      className={classes.clock}
+      format="24h"
+      minutesStep={MINUTES_STEP}
+      withDropdown
+      hoursInputLabel={`${name} hour`}
+      minutesInputLabel={`${name} minute`}
+      value={value}
+      onChange={onChange}
+    />
+  )
+}
 
 type BlockFieldsProps = {
   /** Names the day in every control, for example `Monday`. */
@@ -40,25 +65,11 @@ function BlockFields({ day, blocks, onChange }: BlockFieldsProps) {
       )}
       {blocks.map((block, index) => (
         <Group key={index} gap="xs" wrap="nowrap">
-          <TextInput
-            className={classes.clock}
-            type="time"
-            aria-label={`${day} block ${index + 1} from`}
-            value={block.start}
-            onChange={(event) => setBlock(index, { start: event.currentTarget.value })}
-            required
-          />
+          <ClockField name={`${day} block ${index + 1} start`} value={block.start} onChange={(start) => setBlock(index, { start })} />
           <Text size="sm" aria-hidden>
             to
           </Text>
-          <TextInput
-            className={classes.clock}
-            type="time"
-            aria-label={`${day} block ${index + 1} to`}
-            value={block.end}
-            onChange={(event) => setBlock(index, { end: event.currentTarget.value })}
-            required
-          />
+          <ClockField name={`${day} block ${index + 1} end`} value={block.end} onChange={(end) => setBlock(index, { end })} />
           <CloseButton
             aria-label={`Remove ${day} block ${index + 1}`}
             onClick={() => onChange(blocks.filter((_, position) => position !== index))}
@@ -158,7 +169,6 @@ export function AvailabilityForm({ initial, onSave }: Props) {
                     label={`Date ${index + 1}`}
                     value={override.date}
                     onChange={(event) => setOverride(index, { date: event.currentTarget.value })}
-                    required
                   />
                   <CloseButton
                     aria-label={`Remove date ${index + 1}`}

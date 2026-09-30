@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 
-// A Monday at 06:00, inside the default availability, so "Start now" finds plans at any time the suite runs.
+// A Saturday at 08:00, the start of the default weekend block, so "Start now" finds plans at any time the suite runs.
 test.use({ timezoneId: 'UTC' })
-const MONDAY_MORNING = new Date('2026-10-05T06:00:00Z')
+const SATURDAY_MORNING = new Date('2026-10-10T08:00:00Z')
 
 test('a baker plans a bake, accepts plan 1, marks the first reminder done and answers the survey @smoke', async ({ page }) => {
-  await page.clock.setFixedTime(MONDAY_MORNING)
+  await page.clock.setFixedTime(SATURDAY_MORNING)
 
   await page.goto('/sign-up', { waitUntil: 'networkidle' })
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Baker')
@@ -22,8 +22,10 @@ test('a baker plans a bake, accepts plan 1, marks the first reminder done and an
 
   await expect(page.getByRole('heading', { name: 'Your availability' })).toBeVisible()
   await expect(page.getByText('Step 2 of 5')).toBeVisible()
-  await expect(page.getByLabel('Monday block 1 from')).toHaveValue('06:00')
-  await expect(page.getByLabel('Monday block 2 to')).toHaveValue('22:00')
+  await expect(page.getByRole('spinbutton', { name: 'Monday block 1 start hour' })).toHaveValue('06')
+  await expect(page.getByRole('spinbutton', { name: 'Monday block 2 start hour' })).toHaveValue('17')
+  await expect(page.getByRole('spinbutton', { name: 'Saturday block 1 end hour' })).toHaveValue('22')
+  await expect(page.locator('[required]')).toHaveCount(0)
   await page.getByRole('button', { name: 'Save availability' }).click()
 
   await expect(page.getByRole('heading', { name: 'When do you bake?' })).toBeVisible()
@@ -52,7 +54,7 @@ test('a baker plans a bake, accepts plan 1, marks the first reminder done and an
 })
 
 test('the availability a baker saved is there the next time, and no plan is never a dead end @smoke', async ({ page }) => {
-  await page.clock.setFixedTime(MONDAY_MORNING)
+  await page.clock.setFixedTime(SATURDAY_MORNING)
 
   await page.goto('/sign-up', { waitUntil: 'networkidle' })
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Baker')
@@ -62,8 +64,9 @@ test('the availability a baker saved is there the next time, and no plan is neve
   await page.getByRole('button', { name: 'Create account' }).click()
   await page.getByRole('button', { name: 'Sauerteig Basic Brot' }).click()
 
-  // Monday morning goes away: a bake that starts now no longer fits.
-  await page.getByRole('button', { name: 'Remove Monday block 1' }).click()
+  // Saturday goes away and Monday starts an hour later: a bake that starts now no longer fits.
+  await page.getByRole('button', { name: 'Remove Saturday block 1' }).click()
+  await page.getByRole('spinbutton', { name: 'Monday block 1 start hour' }).fill('7')
   await page.getByRole('button', { name: 'Save availability' }).click()
   await page.getByRole('button', { name: 'Show plans' }).click()
 
@@ -71,6 +74,7 @@ test('the availability a baker saved is there the next time, and no plan is neve
   await page.getByRole('button', { name: 'Change availability' }).click()
 
   await expect(page.getByRole('heading', { name: 'Your availability' })).toBeVisible()
-  await expect(page.getByLabel('Monday block 1 from')).toHaveValue('16:00')
-  await expect(page.getByLabel('Monday block 2 from')).toHaveCount(0)
+  await expect(page.getByRole('group', { name: 'Saturday' }).getByText('Not available')).toBeVisible()
+  await expect(page.getByRole('spinbutton', { name: 'Saturday block 1 start hour' })).toHaveCount(0)
+  await expect(page.getByRole('spinbutton', { name: 'Monday block 1 start hour' })).toHaveValue('07')
 })

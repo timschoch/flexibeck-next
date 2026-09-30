@@ -28,7 +28,7 @@ export const availabilitySchema = z.object({
     saturday: blocks,
     sunday: blocks,
   }),
-  overrides: z.array(z.object({ date: z.iso.date(), blocks })),
+  overrides: z.array(z.object({ date: z.iso.date('Pick a date'), blocks })),
   kitchenTemperature: z.number().min(MIN_KITCHEN_TEMPERATURE).max(MAX_KITCHEN_TEMPERATURE).optional(),
   fridgeTemperature: z.number().min(MIN_FRIDGE_TEMPERATURE).max(MAX_FRIDGE_TEMPERATURE).optional(),
 }) satisfies z.ZodType<Availability>
