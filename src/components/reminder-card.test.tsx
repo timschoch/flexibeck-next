@@ -50,6 +50,21 @@ describe('ReminderCard', () => {
     expect(onFirstDone).toHaveBeenCalledTimes(1)
   })
 
+  it('links the creator video of the step, opened in a new tab', () => {
+    render(<ReminderCard steps={plan!.steps} />)
+
+    const link = screen.getByRole('link', { name: 'Watch how: Mix flour and water' })
+    expect(link.getAttribute('href')).toBe('https://www.youtube.com/watch?v=K4TdJsa1voI&t=29s')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toContain('noopener')
+  })
+
+  it('shows no video link for a step without a creator video', () => {
+    render(<ReminderCard steps={[{ ...handsOnSteps[0]!, stepId: 'no-such-step' }]} />)
+
+    expect(screen.queryByRole('link', { name: /^Watch how/ })).toBeNull()
+  })
+
   it('shows the cue of a check', async () => {
     const check = { ...handsOnSteps[0]!, kind: 'check' as const, cue: 'The dough grew by half' }
     render(<ReminderCard steps={[check]} />)

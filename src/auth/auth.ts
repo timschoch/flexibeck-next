@@ -22,7 +22,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'pg', schema, usePlural: true }),
   emailAndPassword: { enabled: true, requireEmailVerification: false },
-  user: { additionalFields: { experience: { type: 'string', required: true, validator: { input: experienceSchema } } } },
+  user: { additionalFields: { experience: { type: experienceSchema.options, required: true, validator: { input: experienceSchema } } } },
   rateLimit: {
     enabled: true,
     storage: 'database',

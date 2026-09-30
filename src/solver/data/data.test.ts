@@ -4,6 +4,7 @@ import { parseLocalTime } from '../time'
 import type { Availability, Step, Weekday } from '../types'
 import { hacks } from './hacks'
 import { recipes } from './recipes'
+import { findStepVideo, stepVideos } from './step-videos'
 
 const weekdays: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const allDay: Availability = {
@@ -63,5 +64,32 @@ describe('recipes', () => {
       })
       expect(best?.hackIds, recipe.id).toEqual([])
     }
+  })
+})
+
+describe('step videos', () => {
+  const stepsById = new Map(recipes.flatMap((recipe) => listSteps(recipe.steps)).map((step) => [step.id, step]))
+
+  it('each belong to one hands-on step of a recipe', () => {
+    const ids = stepVideos.map((video) => video.stepId)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const video of stepVideos) {
+      const step = stepsById.get(video.stepId)
+      expect(step, video.stepId).toBeDefined()
+      expect('presence' in step! && step.presence, video.stepId).toBe('hands-on')
+    }
+  })
+
+  it('link the creator over https, with the recipe page as the source', () => {
+    for (const video of stepVideos) {
+      expect(video.url, video.stepId).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=[\w-]+&t=\d+s$/)
+      expect(video.source, video.stepId).toMatch(/^https:\/\/www\.marcelpaa\.com\//)
+      expect(video.title, video.stepId).not.toBe('')
+    }
+  })
+
+  it('are found by step id', () => {
+    expect(findStepVideo('basic-fold-1')?.url).toContain('K4TdJsa1voI')
+    expect(findStepVideo('no-such-step')).toBeUndefined()
   })
 })

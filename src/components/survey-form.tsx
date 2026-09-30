@@ -1,12 +1,16 @@
 import { Button, Paper, Radio, Stack, Text, Textarea } from '@mantine/core'
 import { useState } from 'react'
 import { track } from '../analytics/analytics'
+import type { Experience } from '../auth/experience'
 import classes from './plan-flow.module.css'
 
 const SCORES = ['1', '2', '3', '4', '5', '6', '7']
 
-/** The Single Ease Question after the first reminder: one answer, then a thank you. */
-export function SurveyForm() {
+/**
+ * The Single Ease Question after the first reminder: one answer, then a thank you.
+ * `experience` is the baker's sign-up answer; the event carries it so novices can be filtered.
+ */
+export function SurveyForm({ experience }: { experience: Experience }) {
   const [score, setScore] = useState('')
   const [comment, setComment] = useState('')
   const [answered, setAnswered] = useState(false)
@@ -14,7 +18,7 @@ export function SurveyForm() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!score) return
-    track('survey_answered', { question: 'seq', score: Number(score), comment: comment.trim() })
+    track('survey_answered', { question: 'seq', score: Number(score), comment: comment.trim(), experience })
     setAnswered(true)
   }
 
