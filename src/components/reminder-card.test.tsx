@@ -39,6 +39,17 @@ describe('ReminderCard', () => {
     expect(track).toHaveBeenCalledTimes(1)
   })
 
+  it('tells its parent once that the first reminder is done', async () => {
+    const onFirstDone = vi.fn()
+    render(<ReminderCard steps={plan!.steps} onFirstDone={onFirstDone} />)
+
+    expect(onFirstDone).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+
+    expect(onFirstDone).toHaveBeenCalledTimes(1)
+  })
+
   it('shows the cue of a check', async () => {
     const check = { ...handsOnSteps[0]!, kind: 'check' as const, cue: 'The dough grew by half' }
     render(<ReminderCard steps={[check]} />)

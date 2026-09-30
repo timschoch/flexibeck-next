@@ -5,13 +5,14 @@ import { expect, test } from '@playwright/test'
 test.use({ timezoneId: 'UTC' })
 const MONDAY_MORNING = new Date('2026-10-05T06:00:00Z')
 
-test('a baker plans a bake, accepts plan 1 and marks the first reminder done @smoke', async ({ page }) => {
+test('a baker plans a bake, accepts plan 1, marks the first reminder done and answers the survey @smoke', async ({ page }) => {
   await page.clock.setFixedTime(MONDAY_MORNING)
 
   await page.goto('/sign-up', { waitUntil: 'networkidle' })
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Baker')
   await page.getByRole('textbox', { name: 'Email' }).fill(`baker-${randomUUID()}@example.com`)
   await page.getByLabel(/^Password/).fill(randomUUID())
+  await page.getByRole('radiogroup', { name: /^How much baking experience do you have\?/ }).getByRole('radio', { name: 'Novice' }).check()
   await page.getByRole('button', { name: 'Create account' }).click()
 
   await expect(page.getByRole('heading', { name: 'Choose a recipe' })).toBeVisible()
@@ -40,6 +41,14 @@ test('a baker plans a bake, accepts plan 1 and marks the first reminder done @sm
   await expect(page.getByRole('heading', { name: 'Mix flour and water' })).toBeVisible()
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('heading', { name: 'Mix in salt and sourdough' })).toBeVisible()
+
+  const scale = page.getByRole('radiogroup', { name: /^How easy was your first bake\?/ })
+  await expect(scale.getByRole('radio')).toHaveCount(7)
+  await scale.getByRole('radio', { name: '6' }).check()
+  await page.getByRole('textbox', { name: 'What was hard?' }).fill('Nothing so far')
+  await page.getByRole('button', { name: 'Send answer' }).click()
+  await expect(page.getByText('Thank you')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Send answer' })).toHaveCount(0)
 })
 
 test('the availability a baker saved is there the next time, and no plan is never a dead end @smoke', async ({ page }) => {
@@ -49,6 +58,7 @@ test('the availability a baker saved is there the next time, and no plan is neve
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Baker')
   await page.getByRole('textbox', { name: 'Email' }).fill(`baker-${randomUUID()}@example.com`)
   await page.getByLabel(/^Password/).fill(randomUUID())
+  await page.getByRole('radio', { name: 'Experienced' }).check()
   await page.getByRole('button', { name: 'Create account' }).click()
   await page.getByRole('button', { name: 'Sauerteig Basic Brot' }).click()
 

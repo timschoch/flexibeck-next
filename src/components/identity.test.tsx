@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { identify, resetAnalytics } from '../analytics/analytics'
+import { identify, resetAnalytics, track } from '../analytics/analytics'
 import { authClient } from '../auth/auth-client'
 import { render } from '../test/render'
 import { AppLayout } from './app-layout'
 import { SignInForm } from './sign-in-form'
 import { SignUpForm } from './sign-up-form'
 
-vi.mock('../analytics/analytics', () => ({ identify: vi.fn(), resetAnalytics: vi.fn() }))
+vi.mock('../analytics/analytics', () => ({ identify: vi.fn(), resetAnalytics: vi.fn(), track: vi.fn() }))
 vi.mock('../auth/auth-client', () => ({
   authClient: { signIn: { email: vi.fn() }, signUp: { email: vi.fn() }, signOut: vi.fn() },
 }))
@@ -55,16 +55,48 @@ describe('analytics identity', () => {
     expect(identify).not.toHaveBeenCalled()
   })
 
-  it('identifies the baker after sign-up', async () => {
+  it('fires signed_up, then identifies the baker with the experience', async () => {
     vi.mocked(authClient.signUp.email).mockResolvedValue(signedIn as never)
+    render(<SignUpForm />)
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Test Baker')
+    await fillCredentials()
+    const experience = screen.getByRole('radiogroup', { name: /^How much baking experience do you have\?/ })
+    expect(within(experience).getAllByRole('radio')).toHaveLength(3)
+    await userEvent.click(within(experience).getByRole('radio', { name: 'Intermediate' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(authClient.signUp.email).toHaveBeenCalledWith(expect.objectContaining({ experience: 'intermediate' }))
+    expect(track).toHaveBeenCalledTimes(1)
+    expect(track).toHaveBeenCalledWith('signed_up')
+    expect(identify).toHaveBeenCalledTimes(1)
+    expect(identify).toHaveBeenCalledWith('baker-1', { experience: 'intermediate' })
+    expect(vi.mocked(track).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(identify).mock.invocationCallOrder[0]!)
+  })
+
+  it('creates no account without the experience', async () => {
     render(<SignUpForm />)
 
     await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Test Baker')
     await fillCredentials()
     await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
-    expect(identify).toHaveBeenCalledTimes(1)
-    expect(identify).toHaveBeenCalledWith('baker-1')
+    expect(authClient.signUp.email).not.toHaveBeenCalled()
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('fires nothing when sign-up fails', async () => {
+    vi.mocked(authClient.signUp.email).mockResolvedValue(refused as never)
+    render(<SignUpForm />)
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Test Baker')
+    await fillCredentials()
+    await userEvent.click(screen.getByRole('radio', { name: 'Novice' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(screen.getByRole('alert')).toBeDefined()
+    expect(track).not.toHaveBeenCalled()
+    expect(identify).not.toHaveBeenCalled()
   })
 
   it('resets the identity on sign-out', async () => {

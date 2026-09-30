@@ -6,14 +6,17 @@ import type { PlannedStep } from '../solver/types'
 import classes from './plan-flow.module.css'
 
 /** The next hands-on step of an accepted plan. The baker marks it done, then the one after it shows. */
-export function ReminderCard({ steps }: { steps: PlannedStep[] }) {
+export function ReminderCard({ steps, onFirstDone }: { steps: PlannedStep[]; onFirstDone?: () => void }) {
   const headingId = useId()
   const [doneCount, setDoneCount] = useState(0)
   const handsOnSteps = steps.filter((step) => step.presence === 'hands-on')
   const next = handsOnSteps[doneCount]
 
   function handleDone() {
-    if (doneCount === 0) track('first_reminder_done')
+    if (doneCount === 0) {
+      track('first_reminder_done')
+      onFirstDone?.()
+    }
     setDoneCount(doneCount + 1)
   }
 

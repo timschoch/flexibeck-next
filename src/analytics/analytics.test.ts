@@ -20,7 +20,13 @@ describe('analytics', () => {
   it('joins events before and after sign-in: identify passes the baker id to posthog', () => {
     identify('baker-1')
 
-    expect(posthog.identify).toHaveBeenCalledWith('baker-1')
+    expect(posthog.identify).toHaveBeenCalledWith('baker-1', undefined)
+  })
+
+  it('sets person properties with identify', () => {
+    identify('baker-1', { experience: 'novice' })
+
+    expect(posthog.identify).toHaveBeenCalledWith('baker-1', { experience: 'novice' })
   })
 
   it('starts a new anonymous person on reset', () => {

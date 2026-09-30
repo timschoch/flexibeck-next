@@ -9,6 +9,7 @@ test('a baker signs up, signs out and signs in again @smoke', async ({ page }) =
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Baker')
   await page.getByRole('textbox', { name: 'Email' }).fill(email)
   await page.getByLabel(/^Password/).fill(password)
+  await page.getByRole('radio', { name: 'Intermediate' }).check()
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page).toHaveURL(/\/plan$/)
   await expect(page.getByRole('heading', { name: 'Choose a recipe' })).toBeVisible()
