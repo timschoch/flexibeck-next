@@ -6,7 +6,7 @@ export default defineConfig({
   testDir: 'e2e',
   use: { baseURL: `http://localhost:${PORT}` },
   webServer: {
-    command: 'pnpm dev',
+    command: 'pnpm db:migrate && pnpm dev',
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
   },
