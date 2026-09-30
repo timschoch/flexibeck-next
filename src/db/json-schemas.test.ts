@@ -54,6 +54,12 @@ describe('availabilitySchema', () => {
     ).toBe(false)
   })
 
+  it('tells the baker to pick a date when an override has none', () => {
+    const result = availabilitySchema.safeParse({ ...validAvailability, overrides: [{ date: '', blocks: [] }] })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toBe('Pick a date')
+  })
+
   it('rejects a temperature outside a kitchen or fridge range', () => {
     expect(availabilitySchema.safeParse({ ...validAvailability, kitchenTemperature: 80 }).success).toBe(false)
     expect(availabilitySchema.safeParse({ ...validAvailability, fridgeTemperature: -30 }).success).toBe(false)
