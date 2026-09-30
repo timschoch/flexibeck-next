@@ -52,12 +52,9 @@ export function citedDecisions(body) {
 }
 
 async function fetchDecision(id) {
-  const { GLUE_API_URL, GLUE_API_TOKEN, GLUE_VERCEL_BYPASS } = process.env
+  const { GLUE_API_URL, GLUE_API_TOKEN } = process.env
   const response = await fetch(`${GLUE_API_URL}/api/v1/products/flexibeck/decisions/${id}`, {
-    headers: {
-      authorization: `Bearer ${GLUE_API_TOKEN}`,
-      'x-vercel-protection-bypass': GLUE_VERCEL_BYPASS ?? '',
-    },
+    headers: { authorization: `Bearer ${GLUE_API_TOKEN}` },
   })
   if (response.status === 404) return null
   if (!response.ok) throw new Error(`Glue API answered ${response.status} for Decision ${id}`)
