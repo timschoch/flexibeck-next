@@ -1,11 +1,14 @@
 import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core'
 import mantineStyles from '@mantine/core/styles.css?url'
-import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { startAnalytics } from '../analytics/analytics'
+import { fetchSession } from '../auth/session'
+import { AppLayout } from '../components/app-layout'
 import { theme } from '../theme'
 
 export const Route = createRootRoute({
+  beforeLoad: async () => ({ session: await fetchSession() }),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -30,7 +33,7 @@ function RootComponent() {
       </head>
       <body>
         <MantineProvider theme={theme}>
-          <Outlet />
+          <AppLayout />
         </MantineProvider>
         <Scripts />
       </body>

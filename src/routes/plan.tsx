@@ -1,7 +1,10 @@
 import { Container, Title } from '@mantine/core'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/plan')({
+  beforeLoad: ({ context }) => {
+    if (!context.session) throw redirect({ to: '/sign-in' })
+  },
   component: PlanPage,
 })
 
