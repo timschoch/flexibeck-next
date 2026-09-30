@@ -1,4 +1,4 @@
-import { WEEKDAYS } from '../plan-flow/default-availability'
+import { WEEKDAYS, defaultAvailability } from '../plan-flow/default-availability'
 import { hacks } from '../solver/data/hacks'
 import { recipes } from '../solver/data/recipes'
 import { plan } from '../solver/plan'
@@ -32,3 +32,13 @@ export const plans: Plan[] = plan({
   now: MONDAY_MORNING,
   mode: { kind: 'start-now' },
 })
+
+/** A Saturday at 08:00 with the default availability: the four-hour method fits, and its steps replace the recipe's from the mix on. */
+export const fourHourPlan = plan({
+  recipe: basicRecipe,
+  hacks,
+  availability: defaultAvailability,
+  kitchen: { temperature: 24 },
+  now: parseLocalTime('2026-10-10T08:00'),
+  mode: { kind: 'start-now' },
+}).find((candidate) => candidate.hackIds.includes('four-hour-method')) as Plan
