@@ -1,5 +1,5 @@
 import { bigint, boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
-import type { Availability, BakePlan } from './json-schemas'
+import type { AvailabilitySettings, BakePlan } from './json-schemas'
 
 // Better Auth core tables, plural names (adapter option `usePlural`).
 
@@ -89,7 +89,7 @@ export const availabilities = pgTable('availabilities', {
   bakerId: text('baker_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
-  settings: jsonb('settings').$type<Availability>().notNull(),
+  settings: jsonb('settings').$type<AvailabilitySettings>().notNull(),
   updatedAt: timestamp('updated_at')
     .notNull()
     .defaultNow()

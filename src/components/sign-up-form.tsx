@@ -1,6 +1,7 @@
 import { Alert, Button, PasswordInput, Stack, TextInput } from '@mantine/core'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { identify } from '../analytics/analytics'
 import { authClient } from '../auth/auth-client'
 
 export function SignUpForm() {
@@ -12,7 +13,7 @@ export function SignUpForm() {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     setPending(true)
-    const { error } = await authClient.signUp.email({
+    const { data, error } = await authClient.signUp.email({
       name: String(form.get('name')),
       email: String(form.get('email')),
       password: String(form.get('password')),
@@ -22,6 +23,7 @@ export function SignUpForm() {
       setErrorMessage(error.message ?? 'Could not create the account')
       return
     }
+    identify(data.user.id)
     await router.invalidate()
     await router.navigate({ to: '/plan' })
   }

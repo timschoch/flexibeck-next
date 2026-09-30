@@ -22,3 +22,13 @@ export function startAnalytics() {
 export function track(event: AnalyticsEvent, properties?: Record<string, unknown>) {
   posthog.capture(event, properties)
 }
+
+/** Joins the events before and after sign-in into one person. */
+export function identify(bakerId: string) {
+  posthog.identify(bakerId)
+}
+
+/** After sign-out the next events belong to a new anonymous person. */
+export function resetAnalytics() {
+  posthog.reset()
+}

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignUpRouteImport } from './routes/sign-up'
+import { Route as BakePlansBakePlanIdRouteImport } from './routes/bake-plans.$bakePlanId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const SignUpRoute = SignUpRouteImport.update({
   path: '/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BakePlansBakePlanIdRoute = BakePlansBakePlanIdRouteImport.update({
+  id: '/bake-plans/$bakePlanId',
+  path: '/bake-plans/$bakePlanId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/plan': typeof PlanRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
+  '/bake-plans/$bakePlanId': typeof BakePlansBakePlanIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/plan': typeof PlanRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
+  '/bake-plans/$bakePlanId': typeof BakePlansBakePlanIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,34 @@ export interface FileRoutesById {
   '/plan': typeof PlanRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
+  '/bake-plans/$bakePlanId': typeof BakePlansBakePlanIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/plan' | '/sign-in' | '/sign-up' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/plan'
+    | '/sign-in'
+    | '/sign-up'
+    | '/bake-plans/$bakePlanId'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/plan' | '/sign-in' | '/sign-up' | '/api/auth/$'
-  id: '__root__' | '/' | '/plan' | '/sign-in' | '/sign-up' | '/api/auth/$'
+  to:
+    | '/'
+    | '/plan'
+    | '/sign-in'
+    | '/sign-up'
+    | '/bake-plans/$bakePlanId'
+    | '/api/auth/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/plan'
+    | '/sign-in'
+    | '/sign-up'
+    | '/bake-plans/$bakePlanId'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +104,7 @@ export interface RootRouteChildren {
   PlanRoute: typeof PlanRoute
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
+  BakePlansBakePlanIdRoute: typeof BakePlansBakePlanIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -109,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bake-plans/$bakePlanId': {
+      id: '/bake-plans/$bakePlanId'
+      path: '/bake-plans/$bakePlanId'
+      fullPath: '/bake-plans/$bakePlanId'
+      preLoaderRoute: typeof BakePlansBakePlanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -124,6 +160,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlanRoute: PlanRoute,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
+  BakePlansBakePlanIdRoute: BakePlansBakePlanIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

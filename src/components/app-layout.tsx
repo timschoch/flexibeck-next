@@ -1,5 +1,6 @@
 import { Anchor, Button, Container, Group } from '@mantine/core'
 import { Link, Outlet, useRouter, useRouteContext } from '@tanstack/react-router'
+import { resetAnalytics } from '../analytics/analytics'
 import { authClient } from '../auth/auth-client'
 
 export function AppLayout() {
@@ -8,6 +9,7 @@ export function AppLayout() {
 
   async function handleSignOut() {
     await authClient.signOut()
+    resetAnalytics()
     await router.invalidate()
     await router.navigate({ to: '/sign-in' })
   }
