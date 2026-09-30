@@ -7,6 +7,10 @@ const SATURDAY_MORNING = new Date('2026-10-10T08:00:00Z')
 
 test('a baker plans a bake, accepts plan 1, marks the first reminder done and answers the survey @smoke', async ({ page }) => {
   await page.clock.setFixedTime(SATURDAY_MORNING)
+  const youtubeRequests: string[] = []
+  page.on('request', (request) => {
+    if (/youtube|ytimg/.test(new URL(request.url()).hostname)) youtubeRequests.push(request.url())
+  })
 
   await page.goto('/sign-up', { waitUntil: 'networkidle' })
   await page.getByRole('textbox', { name: 'Name' }).fill('Test Baker')
@@ -41,9 +45,14 @@ test('a baker plans a bake, accepts plan 1, marks the first reminder done and an
   await expect(page.getByRole('heading', { name: 'Your bake' })).toBeVisible()
   await expect(page.getByText('Step 5 of 5')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Mix flour and water' })).toBeVisible()
-  const watchHow = page.getByRole('link', { name: 'Watch how: Mix flour and water' })
-  await expect(watchHow).toHaveAttribute('href', /youtube\.com\/watch\?v=K4TdJsa1voI/)
-  await expect(watchHow).toHaveAttribute('target', '_blank')
+  await expect(page.getByRole('figure', { name: 'Mix flour and water, Marcel Paa' })).toBeVisible()
+  await expect(page.locator('iframe')).toHaveCount(0)
+  expect(youtubeRequests).toEqual([])
+  await page.getByRole('button', { name: 'Play video: Mix flour and water' }).click()
+  await expect(page.locator('iframe[title="Mix flour and water, Marcel Paa"]')).toHaveAttribute(
+    'src',
+    'https://www.youtube-nocookie.com/embed/K4TdJsa1voI?start=29&autoplay=1',
+  )
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('heading', { name: 'Mix in salt and sourdough' })).toBeVisible()
 

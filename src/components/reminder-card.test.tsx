@@ -50,19 +50,43 @@ describe('ReminderCard', () => {
     expect(onFirstDone).toHaveBeenCalledTimes(1)
   })
 
-  it('links the creator video of the step, opened in a new tab', () => {
+  it('shows the creator video as a figure that loads nothing before the play click', () => {
     render(<ReminderCard steps={plan!.steps} />)
 
-    const link = screen.getByRole('link', { name: 'Watch how: Mix flour and water' })
-    expect(link.getAttribute('href')).toBe('https://www.youtube.com/watch?v=K4TdJsa1voI&t=29s')
-    expect(link.getAttribute('target')).toBe('_blank')
-    expect(link.getAttribute('rel')).toContain('noopener')
+    expect(screen.getByRole('figure', { name: 'Mix flour and water, Marcel Paa' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Play video: Mix flour and water' })).toBeDefined()
+    expect(document.querySelector('iframe')).toBeNull()
+    for (const element of document.querySelectorAll('[src]')) {
+      expect(element.getAttribute('src')).not.toMatch(/youtube|ytimg/)
+    }
   })
 
-  it('shows no video link for a step without a creator video', () => {
+  it('plays the video in a youtube-nocookie iframe at the chapter of the step after the click', async () => {
+    render(<ReminderCard steps={plan!.steps} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Play video: Mix flour and water' }))
+
+    const player = document.querySelector('iframe')
+    expect(player?.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/K4TdJsa1voI?start=29&autoplay=1')
+    expect(player?.getAttribute('title')).toBe('Mix flour and water, Marcel Paa')
+    expect(screen.queryByRole('button', { name: /^Play video/ })).toBeNull()
+  })
+
+  it('shows the next step with its own player unloaded', async () => {
+    render(<ReminderCard steps={plan!.steps} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Play video: Mix flour and water' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+
+    expect(document.querySelector('iframe')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Play video: Mix in salt and sourdough' })).toBeDefined()
+  })
+
+  it('shows no video for a step without a creator video', () => {
     render(<ReminderCard steps={[{ ...handsOnSteps[0]!, stepId: 'no-such-step' }]} />)
 
-    expect(screen.queryByRole('link', { name: /^Watch how/ })).toBeNull()
+    expect(screen.queryByRole('figure')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Play video/ })).toBeNull()
   })
 
   it('shows the cue of a check', async () => {

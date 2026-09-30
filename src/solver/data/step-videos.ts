@@ -4,33 +4,31 @@
 // the author "Einfach Backen - Marcel Paa"; the chapter times come from the description.
 import type { StepVideo } from '../types'
 
-type Video = { id: string; title: string; source: string }
+type Video = { youtubeId: string; title: string; creator: string; source: string }
 
 const NINE_TO_FIVE: Video = {
-  id: 'Gp5ELw3jD04',
+  youtubeId: 'Gp5ELw3jD04',
   title: 'Brot backen trotz Vollzeitjob: Mein 9-to-5 Sauerteigbrot mit Zeitplan!',
+  creator: 'Marcel Paa',
   source: 'https://www.marcelpaa.com/rezepte/9-to-5-sauerteigbrot-fuer-berufstaetige/',
 }
 
 const BASIC: Video = {
-  id: 'K4TdJsa1voI',
+  youtubeId: 'K4TdJsa1voI',
   title: 'Sauerteig Basic Brot - Mein einfaches Standard Sauerteigbrot Rezept',
+  creator: 'Marcel Paa',
   source: 'https://www.marcelpaa.com/rezepte/sauerteig-basic-brot/',
 }
 
 const ONE_BY_ONE: Video = {
-  id: 'J9A6yoKrygs',
+  youtubeId: 'J9A6yoKrygs',
   title: 'Sauerteig Brot 1x1 - Schritt für Schritt zum perfekten Sauerteigbrot - Brot Backen Masterclass',
+  creator: 'Marcel Paa',
   source: 'https://www.marcelpaa.com/rezepte/sauerteig-brot-1x1/',
 }
 
 function chapter(stepId: string, video: Video, name: string, startSeconds: number): StepVideo {
-  return {
-    stepId,
-    title: `${video.title} · ${name}`,
-    url: `https://www.youtube.com/watch?v=${video.id}&t=${startSeconds}s`,
-    source: video.source,
-  }
+  return { ...video, stepId, title: `${video.title} · ${name}`, startSeconds }
 }
 
 export const stepVideos: StepVideo[] = [
