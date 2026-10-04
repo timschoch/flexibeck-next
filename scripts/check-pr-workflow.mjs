@@ -51,10 +51,12 @@ export function citedDecisions(body) {
   return [...new Set(line[1].match(DECISION_ID) ?? [])]
 }
 
-async function fetchDecision(id) {
+export async function fetchDecision(id) {
   const { GLUE_API_URL, GLUE_API_TOKEN } = process.env
-  const response = await fetch(`${GLUE_API_URL}/api/v1/products/flexibeck/decisions/${id}`, {
+  const response = await fetch(`${GLUE_API_URL}/api/v1/projects/flexibeck/parts/${id}`, {
     headers: { authorization: `Bearer ${GLUE_API_TOKEN}` },
+    // A path the deployment does not have redirects to the sign-in page.
+    redirect: 'manual',
   })
   if (response.status === 404) return null
   if (!response.ok) throw new Error(`Glue API answered ${response.status} for Decision ${id}`)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { citedDecisions, problems } from './check-pr-workflow.mjs'
+import { citedDecisions, fetchDecision, problems } from './check-pr-workflow.mjs'
 
 const accepted = new Map([['D1', { status: 'accepted' }]])
 const good = 'Closes #4\n\nDecision: D1'
@@ -37,4 +37,32 @@ test('the generated route tree does not count as source', () => {
 
 test('cited ids are unique', () => {
   assert.deepEqual(citedDecisions('Decision: D1, D2 and D1'), ['D1', 'D2'])
+})
+
+function stubFetch(t, response) {
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, options })
+    return response
+  })
+  return calls
+}
+
+test('a Decision is read as a Part, without following redirects', async (t) => {
+  process.env.GLUE_API_URL = 'https://glue.test'
+  const part = { status: 'superseded', supersededBy: { id: 'D2' } }
+  const calls = stubFetch(t, { status: 200, ok: true, json: async () => part })
+  assert.deepEqual(await fetchDecision('D1'), { status: 'superseded', supersededBy: 'D2' })
+  assert.equal(calls[0].url, 'https://glue.test/api/v1/projects/flexibeck/parts/D1')
+  assert.equal(calls[0].options.redirect, 'manual')
+})
+
+test('a missing Part is no Decision', async (t) => {
+  stubFetch(t, { status: 404, ok: false })
+  assert.equal(await fetchDecision('D9'), null)
+})
+
+test('a redirect is an error, not a Decision', async (t) => {
+  stubFetch(t, { status: 307, ok: false })
+  await assert.rejects(fetchDecision('D1'), /answered 307/)
 })
