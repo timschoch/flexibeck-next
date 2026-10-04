@@ -13,9 +13,9 @@ Sourdough planner, rebuilt from its [vision](https://github.com/timschoch/flexib
 
 ## Concept hub: Glue
 
-- Glue Product `flexibeck` holds Goals, Decisions, Insights, Facts, Guardrails. Production Glue: `GLUE_API_URL=https://glue-glue-glue.vercel.app`, contract at `$GLUE_API_URL/api/v1/openapi.json`, header `Authorization: Bearer $GLUE_API_TOKEN`. Terms: [Glue CONTEXT.md](https://github.com/timschoch/glue/blob/main/CONTEXT.md).
+- Glue Product `flexibeck` holds Goals, Decisions, Insights, Guardrails. Production Glue: `GLUE_API_URL=https://glue-glue-glue.vercel.app`, contract at `$GLUE_API_URL/api/v1/openapi.json`, header `Authorization: Bearer $GLUE_API_TOKEN`. Terms: [Glue CONTEXT.md](https://github.com/timschoch/glue/blob/main/CONTEXT.md).
 - Cycle: `Insight → Decision → Concept and Guardrails → build → measure → Insight`.
-- No ticket or PR without the Decision it implements. No Decision without a Goal and evidence (Insight or Fact).
+- No ticket or PR without the Decision it implements. No Decision without a Goal and evidence (Insight).
 - Glue lacks something → issue on `timschoch/glue`, label `needs-triage`: tried, expected, did instead. No silent workarounds.
 - Coordination with the Glue Orchestrator: timschoch/glue#50.
 
