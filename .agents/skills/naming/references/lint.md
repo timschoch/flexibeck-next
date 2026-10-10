@@ -2,9 +2,16 @@
 
 Rule numbers refer to [SKILL.md](../SKILL.md).
 
-## Machine: the CI gate `naming`
+## Machine: the gate `naming`
 
-`bundles/workflow/rules/naming.sh` in the hub, run on the files changed in the PR. It reads [naming.json](naming.json) merged with the stack files and the repo's `.skilly/naming.json` (merge order in [SKILL.md](../SKILL.md), Per-project overrides).
+[scripts/check.mjs](../scripts/check.mjs), on the files the branch changes over its base branch. `skilly / gate` runs it in CI; the `naming` step in the `verify` push stage runs it before the push.
+
+```sh
+node .agents/skills/naming/scripts/check.mjs            # files changed over the base branch
+node .agents/skills/naming/scripts/check.mjs <files...>  # these files
+```
+
+It reads [naming.json](naming.json) merged with the stack files and the repo's `.skilly/naming.json` (merge order in [SKILL.md](../SKILL.md), Per-project overrides).
 
 The gate checks declared names only. It skips a destructured key without a rename, like `{ req }`, because the object's owner picked it. In `{ req: request }` it checks `request`.
 
@@ -58,7 +65,7 @@ Consumers on Biome 2.x merge [biome.json](biome.json) into theirs. It covers keb
 
 | Rule | What you judge |
 | --- | --- |
-| 1 | The word matches `CONTEXT.md`, and the repo's word won over the request's |
+| 1 | The word matches `GLOSSARY.md`, and the repo's word won over the request's |
 | 2 | A new word went through term-check and the user signed it off |
 | 3 | The name says the role, not the type |
 | 5 | The name repeats nothing the call site says |
