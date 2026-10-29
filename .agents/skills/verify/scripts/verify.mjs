@@ -3,10 +3,17 @@
 // stage of this script, so the local gate and the pipeline cannot drift into disagreeing about
 // what green means.
 //
-// Stages are cumulative through `extends` in `.skilly/verify.json`: `push` contains `commit`, `ci`
-// contains `push`. Cumulative by construction, so nobody can write a stage that skips a check the
-// stage below it runs. `tier` and `target` subtract from that: a repo runs a step only once it is
-// big enough for it, and only when the thing the step checks is there.
+// The steps come from `../references/verify.json`, the defaults every Consumer gets on sync, with
+// the repo's `.skilly/verify.json` merged on top (rules in merge-config.mjs). Steps match by
+// `name`: the repo changes a default step by naming it, drops one with `"-<name>"`, and adds its
+// own under a new name. The repo file is optional.
+//
+// Stages are cumulative through `extends`: `push` contains `commit`, `ci` contains `push`.
+// Cumulative by default, so a stage skips a check the stage below it runs only where the config
+// says so by name. `tier` and `target` subtract: a repo runs a step only once it is big enough
+// for it, and only when the thing the step checks is there. `replaces` on a step drops the step
+// it covers, so the full unit suite does not rerun the changed tests. `without` on a stage drops
+// inherited steps: `pr` is `ci` without the suites that the release PR and the nightly run.
 //
 // A budget warns and never fails. A gate that fails on slowness teaches you to bypass the gate,
 // and the bypass outlives the slowness. `budgetTicket` in the config says where a stage that has
@@ -15,6 +22,7 @@
 // Usage:
 //   node .agents/skills/verify/scripts/verify.mjs <stage>
 //   node .agents/skills/verify/scripts/verify.mjs <stage> --steps    resolved steps as JSON, runs nothing
+//   node .agents/skills/verify/scripts/verify.mjs --config           merged config as JSON, runs nothing
 //
 // The flag is `--steps` and not `--print`, because `--print` is node's own eval flag and the
 // shell allowlist refuses any command that carries it.
@@ -22,19 +30,24 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defaultBranch } from './default-branch.mjs';
+import { mergeConfig } from './merge-config.mjs';
 
 const TIERS = ['sandbox', 'tool', 'product'];
+const DEFAULTS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'references', 'verify.json');
+const MARKERS = [join('.skilly', 'config.json'), join('.skilly', 'verify.json')];
 
 const fail = (...lines) => {
   for (const line of lines) console.error(`verify: ${line}`);
   process.exit(2);
 };
 
-/** The nearest ancestor of `from` that carries a `.skilly/verify.json`. */
+/** The nearest ancestor of `from` that is a Consumer: it carries a `.skilly/config.json` or `.skilly/verify.json`. */
 const findRoot = (from) => {
   let directory = resolve(from);
   for (;;) {
-    if (existsSync(join(directory, '.skilly', 'verify.json'))) return directory;
+    if (MARKERS.some((marker) => existsSync(join(directory, marker)))) return directory;
     const parent = dirname(directory);
     if (parent === directory) return null;
     directory = parent;
@@ -50,9 +63,18 @@ const readJson = (path, label) => {
 };
 
 const root = findRoot(process.cwd());
-if (!root) fail('no .skilly/verify.json in this directory or any parent, so there is no repo to verify.');
+if (!root) fail('no .skilly/config.json or .skilly/verify.json in this directory or any parent, so there is no repo to verify.');
 
-const config = readJson(join(root, '.skilly', 'verify.json'), '.skilly/verify.json');
+const overridePath = join(root, '.skilly', 'verify.json');
+const config = mergeConfig(
+  readJson(DEFAULTS_PATH, 'the verify defaults'),
+  existsSync(overridePath) ? readJson(overridePath, '.skilly/verify.json') : {},
+);
+if (process.argv.includes('--config')) {
+  process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+  process.exit(0);
+}
+
 const settingsPath = join(root, '.skilly', 'config.json');
 const tier = (existsSync(settingsPath) ? readJson(settingsPath, '.skilly/config.json').tier : null) ?? 'sandbox';
 if (!TIERS.includes(tier)) fail(`unknown tier ${JSON.stringify(tier)} in .skilly/config.json, tiers are ${TIERS.join(', ')}.`);
@@ -64,13 +86,22 @@ if (!stage) {
   fail(`unknown stage ${JSON.stringify(stageName ?? null)}.`, `known stages are ${Object.keys(stages).join(', ')}.`);
 }
 
-/** Every step of a stage, the steps of whatever it extends first. */
+const steps = [];
+const skipped = [];
+
+/** Every step of a stage, the steps of whatever it extends first, minus the inherited ones it names in `without`. */
 const stepsFor = (name, seen = []) => {
   if (seen.includes(name)) return fail(`stage ${name} extends itself.`);
   const found = stages[name];
   if (!found) return fail(`stage ${seen.at(-1)} extends unknown stage ${name}.`);
   const inherited = found.extends ? stepsFor(found.extends, [...seen, name]) : [];
-  return [...inherited, ...(found.steps ?? [])];
+  const without = found.without ?? [];
+  const kept = inherited.filter((step) => {
+    if (!without.includes(step.name)) return true;
+    skipped.push({ name: step.name, reason: `stage ${name} runs without it` });
+    return false;
+  });
+  return [...kept, ...(found.steps ?? [])];
 };
 
 const meets = (needed) => TIERS.indexOf(tier) >= TIERS.indexOf(needed);
@@ -78,15 +109,13 @@ const validateTier = (needed, where) => {
   if (!TIERS.includes(needed)) fail(`unknown tier ${JSON.stringify(needed)} on ${where}, tiers are ${TIERS.join(', ')}.`);
 };
 
-const steps = [];
-const skipped = [];
-
 if (stage.tier !== undefined) validateTier(stage.tier, `stage ${stageName}`);
 const stageBlocked = stage.tier !== undefined && !meets(stage.tier);
 
 if (stageBlocked) {
   skipped.push({ name: stageName, reason: `stage needs ${stage.tier}, repo is ${tier}` });
 } else {
+  const runnable = [];
   for (const step of stepsFor(stageName)) {
     if (step.tier !== undefined) validateTier(step.tier, `step ${step.name}`);
     if (step.tier !== undefined && !meets(step.tier)) {
@@ -97,7 +126,13 @@ if (stageBlocked) {
       skipped.push({ name: step.name, reason: `no ${step.target}` });
       continue;
     }
-    steps.push(step);
+    runnable.push(step);
+  }
+  // Only a step that runs replaces another: a replacement that was skipped covers nothing.
+  for (const step of runnable) {
+    const replacement = runnable.find((other) => other.replaces === step.name);
+    if (replacement) skipped.push({ name: step.name, reason: `replaced by ${replacement.name}` });
+    else steps.push(step);
   }
 }
 
@@ -119,11 +154,14 @@ const timings = [];
 // A git hook exports GIT_DIR and friends, which point every `git` a step runs at the hook's
 // repo, temp repos included. Steps run as they would from a shell.
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+// Resolved once, so every step agrees on the default branch.
+env.DEFAULT_BRANCH = defaultBranch(root);
 
 for (const step of steps) {
   const stepStartedAt = Date.now();
   process.stdout.write(`\n> ${stageName}: ${step.name}\n`);
-  const result = spawnSync(step.run, { cwd: root, shell: true, stdio: 'inherit', env });
+  // VERIFY_STEP hands a step script its own config, e.g. the audit step's accept list.
+  const result = spawnSync(step.run, { cwd: root, shell: true, stdio: 'inherit', env: { ...env, VERIFY_STEP: JSON.stringify(step) } });
   const seconds = (Date.now() - stepStartedAt) / 1000;
   timings.push({ name: step.name, seconds });
   if (result.status !== 0) {
