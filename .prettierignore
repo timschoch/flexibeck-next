@@ -4,3 +4,9 @@ skills-lock.json
 .claude/rules
 .claude/skills
 .agents
+
+# skilly-owned files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+.github/workflows/ci.yml
