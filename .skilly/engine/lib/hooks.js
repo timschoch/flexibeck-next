@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { HUB_REPO, LEFTHOOK_VERSION } from './constants.js';
-import * as lockfile from './lockfile.js';
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { HUB_REPO, LEFTHOOK_VERSION, PNPM_VERSION } from './constants.js';
+import { readJson, toJson, writeChanged } from './json-file.js';
+import * as packageManager from './package-manager.js';
 import { selfSource } from './self-source.js';
 
 // The two hook mergers (ADR-0008 decision 22). A Bundle declares its hook
@@ -40,10 +41,14 @@ const EXTENDS_ITEM = '- .skilly/lefthook.json';
 const LEFTHOOK_FILES = ['lefthook.yml', 'lefthook.yaml', '.lefthook.yml', '.lefthook.yaml'];
 const SETTINGS = join('.claude', 'settings.json');
 // husky leaves core.hooksPath set; plain `lefthook install` refuses to run then. `lefthook install`
-// fails with no .git, as in a container build, so it runs only in a checkout. The parentheses keep
-// the `||` from hiding a failure of a command before it.
-const LEFTHOOK_INSTALL = '(test ! -e .git || lefthook install --reset-hooks-path)';
-const HUSKY_COMMAND = 'husky';
+// fails with no .git, as in a container build, so it runs only in a checkout. A host build can have
+// a .git but no lefthook, so it also runs only when lefthook is there. The parentheses keep the `||`
+// from hiding a failure of a command before it.
+const LEFTHOOK_INSTALL = '(test ! -e .git || ! command -v lefthook >/dev/null || lefthook install --reset-hooks-path)';
+// The install with no lefthook check that some Consumers carry. The Sync replaces it with LEFTHOOK_INSTALL.
+const LEFTHOOK_INSTALL_UNCHECKED = '(test ! -e .git || lefthook install --reset-hooks-path)';
+// A bare install as a whole command of `prepare`, with no guard at all. The Sync replaces it with LEFTHOOK_INSTALL.
+const LEFTHOOK_INSTALL_BARE = /(^|&&|;)(\s*)lefthook install(?: --reset-hooks-path)?(?=\s*(?:&&|;|$))/g;
 const HUSKY_DIR = '.husky';
 // husky as a word or a path part: `npx husky install`, `./.husky/x`, which the Sync deletes,
 // `node_modules/.bin/husky`. Not `my-husky` or `husky-foo`.
@@ -57,19 +62,8 @@ export const HOOK_PATHS = [
   HUSKY_DIR,
   'package.json',
   PNPM_WORKSPACE,
-  ...lockfile.LOCKFILES,
+  ...packageManager.LOCKFILES,
 ];
-
-const readJson = (path, fallback) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : fallback);
-const toJson = (value) => JSON.stringify(value, null, 2) + '\n';
-
-// Writes `content` when it differs. Returns true when it wrote.
-function writeChanged(path, content) {
-  if (existsSync(path) && readFileSync(path, 'utf8') === content) return false;
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content);
-  return true;
-}
 
 /** The hook entries of `bundles`, already resolved with their includes: `{ lefthook, claude }`. */
 export function hookEntries(bundles, bundlesDir) {
@@ -176,33 +170,25 @@ export function mergeLefthook(text, runs) {
 
 const HUSKY_BOILERPLATE = /^#!|husky\.sh/;
 
-// hook -> the Consumer's own lines in .husky/<hook>, as one lefthook command.
-function ownHuskyLines(huskyDir, runs) {
-  const own = {};
+// The Sync moves only the husky lines it knows. It does not rewrite the Consumer's own lines into
+// lefthook: shell args, stdin and quoting do not map one to one, and a wrong guess turns a check
+// off with no error. An own line stops the Sync before its first write.
+function validateNoOwnHuskyLines(huskyDir, runs) {
+  const own = [];
   for (const hook of readdirSync(huskyDir).sort()) {
     const path = join(huskyDir, hook);
     if (!statSync(path).isFile()) continue;
-    const lines = readFileSync(path, 'utf8')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => isContent(line) && !HUSKY_BOILERPLATE.test(line))
-      .map((line) => line.replace(/"\$1"|\$1\b/g, '{1}'))
-      .filter((line) => !isSkillyCommand(line, runs));
-    if (lines.length) own[hook] = lines;
+    for (const line of readFileSync(path, 'utf8').split('\n').map((text) => text.trim())) {
+      if (!isContent(line) || HUSKY_BOILERPLATE.test(line)) continue;
+      if (!isSkillyCommand(line.replace(/"\$1"|\$1\b/g, '{1}'), runs)) own.push(`  .husky/${hook}: ${line}`);
+    }
   }
-  return own;
-}
-
-function huskyCommandsYaml(own, lefthookText) {
-  return Object.entries(own)
-    .map(([hook, lines]) => {
-      if (new RegExp(`^${hook}:`, 'm').test(lefthookText)) {
-        throw new Error(`lefthook.yml already has ${hook}: move the lines of .husky/${hook} into it by hand`);
-      }
-      const run = lines.length === 1 ? lines[0] : `|\n${lines.map((line) => `        ${line}`).join('\n')}`;
-      return `${hook}:\n  commands:\n    ${HUSKY_COMMAND}:\n      run: ${run}\n`;
-    })
-    .join('');
+  if (own.length) {
+    throw new Error(
+      `.husky/ has own hook lines the Sync does not move to lefthook:\n${own.join('\n')}\n` +
+        'Put own checks in .skilly/verify.json or move them to lefthook.yml by hand, then delete them from .husky/.',
+    );
+  }
 }
 
 // --- package.json ------------------------------------------------------------------
@@ -233,10 +219,13 @@ export function mergePackageJson(manifest) {
     const byName = ([first], [second]) => first.localeCompare(second);
     merged.devDependencies = Object.fromEntries(Object.entries(devDependencies).sort(byName));
   }
-  const prepare = merged.scripts?.prepare;
+  const prepare = merged.scripts?.prepare
+    ?.replaceAll(LEFTHOOK_INSTALL_UNCHECKED, LEFTHOOK_INSTALL)
+    .replace(LEFTHOOK_INSTALL_BARE, `$1$2${LEFTHOOK_INSTALL}`);
   if (!prepare) merged.scripts = { ...merged.scripts, prepare: LEFTHOOK_INSTALL };
   else if (HUSKY_PREPARE.test(prepare)) merged.scripts.prepare = replaceHuskyCommands(prepare);
   else if (!/\blefthook\b/.test(prepare)) merged.scripts.prepare = `${prepare} && ${LEFTHOOK_INSTALL}`;
+  else merged.scripts.prepare = prepare;
   return JSON.stringify(merged) === JSON.stringify(manifest) ? manifest : merged;
 }
 
@@ -271,45 +260,63 @@ const namesPnpm11 = ({ packageManager }) => Number(/^pnpm@(\d+)/.exec(packageMan
  * .skilly/lefthook.json, into lefthook.yml. Moves a husky Consumer to lefthook.
  * A changed package.json gets its lockfile refreshed. The Hub wires engine/ itself.
  *
- * A pnpm Consumer's pnpm-workspace.yaml gets lefthook in `allowBuilds`. A new file is written only
- * for pnpm 11 or higher in `packageManager`: pnpm below 11 does not fail an install on an unapproved
- * build script, and pnpm 9.15 and 10.0 fail on a file with no `packages`.
+ * A package.json that names no package manager, in a repo with no lockfile, gets pnpm in
+ * `packageManager`. The refresh then creates pnpm-lock.yaml.
+ *
+ * A pnpm-workspace.yaml gets lefthook in `allowBuilds`. A new file is written only for pnpm 11 or
+ * higher in `packageManager`: pnpm below 11 does not fail an install on an unapproved build script,
+ * and pnpm 9.15 and 10.0 fail on a file with no `packages`.
+ *
+ * The `config` tier gets the Claude Code entries only: no git hooks, so no lefthook and no
+ * package.json change. A Consumer that moves down to it loses the skilly lefthook commands.
  */
-export function writeHooks(cwd, { bundles, bundlesDir, refreshLock = lockfile.refreshLock }) {
+export function writeHooks(cwd, { bundles, bundlesDir, tier, refreshLock = packageManager.refreshLock }) {
   if (selfSource(cwd)?.toLowerCase() === HUB_REPO) return;
-  const { lefthook, claude } = hookEntries(bundles, bundlesDir);
-  // It throws on a husky clash, so it runs before the first write.
+  const entries = hookEntries(bundles, bundlesDir);
+  const { claude } = entries;
+  const lefthook = tier === 'config' ? {} : entries.lefthook;
+  // Both throw on what the Sync cannot move, so they run before the first write.
   const lefthookFile = mergedLefthookFile(cwd, lefthook);
+  const packageFiles = tier === 'config' ? null : mergedPackageFiles(cwd, Boolean(lefthookFile));
 
   const settingsPath = join(cwd, SETTINGS);
   const settings = readJson(settingsPath, null);
   if (settings || Object.keys(claude).length) writeChanged(settingsPath, toJson(mergeClaudeSettings(settings ?? {}, claude)));
-  if (!lefthookFile) return;
-  writeChanged(join(cwd, SKILLY_LEFTHOOK), toJson(lefthook));
-  writeChanged(lefthookFile.path, lefthookFile.text);
-  rmSync(join(cwd, HUSKY_DIR), { recursive: true, force: true });
-
-  const packagePath = join(cwd, 'package.json');
-  if (!existsSync(packagePath)) return;
-  const manifest = readJson(packagePath);
-  const merged = mergePackageJson(manifest);
-  if (existsSync(join(cwd, 'pnpm-lock.yaml'))) {
-    const workspacePath = join(cwd, PNPM_WORKSPACE);
-    if (existsSync(workspacePath)) writeChanged(workspacePath, mergePnpmWorkspace(readFileSync(workspacePath, 'utf8')));
-    else if (namesPnpm11(manifest)) writeChanged(workspacePath, mergePnpmWorkspace(''));
+  if (lefthookFile) {
+    writeChanged(join(cwd, SKILLY_LEFTHOOK), toJson(lefthook));
+    writeChanged(lefthookFile.path, lefthookFile.text);
+    rmSync(join(cwd, HUSKY_DIR), { recursive: true, force: true });
   }
-  if (merged !== manifest && writeChanged(packagePath, toJson(merged))) refreshLock(cwd);
+  if (!packageFiles) return;
+  const { workspace, packageJson } = packageFiles;
+  if (workspace) writeChanged(workspace.path, workspace.text);
+  if (packageJson && writeChanged(packageJson.path, packageJson.text)) refreshLock(cwd);
 }
 
-// The Consumer's lefthook file, merged with its .husky/ lines: `{ path, text }`.
-// null when no Bundle has lefthook entries and no earlier Sync wrote any.
+// The Consumer's merged pnpm-workspace.yaml and package.json, each `{ path, text }`, or null when the
+// Sync leaves that file alone. Returns null when there is no package.json.
+function mergedPackageFiles(cwd, movesToLefthook) {
+  const packagePath = join(cwd, 'package.json');
+  if (!existsSync(packagePath)) return null;
+  const original = readJson(packagePath);
+  const named = packageManager.namesNoPackageManager(cwd, original) ? { ...original, packageManager: `pnpm@${PNPM_VERSION}` } : original;
+  const merged = movesToLefthook ? mergePackageJson(named) : named;
+  const workspacePath = join(cwd, PNPM_WORKSPACE);
+  let workspace = null;
+  if (movesToLefthook) {
+    if (existsSync(workspacePath)) workspace = { path: workspacePath, text: mergePnpmWorkspace(readFileSync(workspacePath, 'utf8')) };
+    else if (namesPnpm11(named)) workspace = { path: workspacePath, text: mergePnpmWorkspace('') };
+  }
+  return { workspace, packageJson: merged === original ? null : { path: packagePath, text: toJson(merged) } };
+}
+
+// The Consumer's merged lefthook file: `{ path, text }`. null when no Bundle has lefthook
+// entries and no earlier Sync wrote any.
 function mergedLefthookFile(cwd, lefthook) {
   if (!Object.keys(lefthook).length && !existsSync(join(cwd, SKILLY_LEFTHOOK))) return null;
   const runs = lefthookRuns(lefthook);
-  const path = join(cwd, LEFTHOOK_FILES.find((file) => existsSync(join(cwd, file))) ?? LEFTHOOK_FILES[0]);
-  let own = existsSync(path) ? readFileSync(path, 'utf8') : '';
   const huskyDir = join(cwd, HUSKY_DIR);
-  const husky = existsSync(huskyDir) ? huskyCommandsYaml(ownHuskyLines(huskyDir, runs), own) : '';
-  if (husky) own += `${own && !own.endsWith('\n') ? '\n' : ''}${husky}`;
-  return { path, text: mergeLefthook(own, runs) };
+  if (existsSync(huskyDir)) validateNoOwnHuskyLines(huskyDir, runs);
+  const path = join(cwd, LEFTHOOK_FILES.find((file) => existsSync(join(cwd, file))) ?? LEFTHOOK_FILES[0]);
+  return { path, text: mergeLefthook(existsSync(path) ? readFileSync(path, 'utf8') : '', runs) };
 }
