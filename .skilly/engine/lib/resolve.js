@@ -9,14 +9,19 @@ export function sourceRepo(source) {
   return url ? url[1] : source;
 }
 
-// Resolve bundle names to the union of their sources and gate Rules,
-// following `includes` recursively. Cycles, unknown bundles, and Rules
-// without a check script are hard errors.
+// The name a Bundle skill installs under: its `rename` entry, else its name
+// in the Source. The installed name is the lock key and the folder name.
+export function installedName(entry, skill) {
+  return entry.rename?.[skill] ?? skill;
+}
+
+// Resolve bundle names to the union of their sources, following `includes`
+// recursively. Cycles and unknown bundles are hard errors.
 // selfSource ("owner/repo") and ownSkills (see lib/self-source.js) opt into the
 // Self-source rule: a skill from the consumer's own repo is dropped when the
 // repo already holds it unpinned in .agents/skills. The hub keeps its skills
 // in bundles/, so they still install. Hub-side callers omit both and see every
-// source: scripts/validate-bundles.mjs, scripts/run-gate.mjs.
+// source: scripts/validate-bundles.mjs.
 export function resolveBundles(names, bundlesDir, { selfSource = null, ownSkills = new Set() } = {}) {
   const configs = new Map(); // bundle name -> config, in resolution order
   const visiting = [];
@@ -37,26 +42,22 @@ export function resolveBundles(names, bundlesDir, { selfSource = null, ownSkills
   };
   for (const name of names) visit(name);
 
-  const sources = new Map(); // "owner/repo" -> Set of skill names
-  const rules = new Map(); // rule name -> { bundle, script } — the answer callers need, not re-derived
+  const sources = new Map(); // "owner/repo" -> Set of installed skill names
+  const originalNames = new Map(); // installed name -> name in the Source, renamed skills only
   // GitHub owner/repo is case-insensitive, and the git remote can spell it
   // differently from the bundle config, so this one comparison folds case.
   const selfKey = selfSource ? selfSource.toLowerCase() : null;
-  for (const [name, config] of configs) {
+  for (const config of configs.values()) {
     for (const entry of config.sources ?? []) {
       const isSelf = selfKey && sourceRepo(entry.source).toLowerCase() === selfKey;
       for (const skill of entry.skills ?? []) {
         if (isSelf && ownSkills.has(skill)) continue;
+        const name = installedName(entry, skill);
+        if (name !== skill) originalNames.set(name, skill);
         if (!sources.has(entry.source)) sources.set(entry.source, new Set());
-        sources.get(entry.source).add(skill);
+        sources.get(entry.source).add(name);
       }
     }
-    for (const rule of config.rules ?? []) {
-      if (rules.has(rule)) continue;
-      const script = join(bundlesDir, name, 'rules', `${rule}.sh`);
-      if (!existsSync(script)) throw new Error(`rule "${rule}" declared by "${name}" has no ${script}`);
-      rules.set(rule, { bundle: name, script });
-    }
   }
-  return { bundles: [...configs.keys()], sources, rules };
+  return { bundles: [...configs.keys()], sources, originalNames };
 }
