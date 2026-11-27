@@ -14,5 +14,7 @@
   "review": {
     "bots": []
   },
-  "hub": "v0.6.0"
+  "skills": [
+    "neon-postgres-branches"
+  ]
 }
