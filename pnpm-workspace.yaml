@@ -1,4 +1,3 @@
 allowBuilds:
-  lefthook: false
   core-js: false
   esbuild: false
